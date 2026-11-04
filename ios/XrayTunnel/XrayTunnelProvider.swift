@@ -43,7 +43,7 @@ final class XrayTunnelProvider: NEPacketTunnelProvider {
             }
             let request = try Self.request(method: "runXray", payload: ["xrayJson": configJSON])
             invokeQueue.async { [weak self] in
-                let response = LibXray.invoke(request)
+                let response = GoLibXrayInvoke(request)
                 let result = Self.parseResponse(response)
                 DispatchQueue.main.async {
                     guard let self else {
@@ -73,7 +73,7 @@ final class XrayTunnelProvider: NEPacketTunnelProvider {
         }
         invokeQueue.async { [weak self] in
             if let request = try? Self.request(method: "stopXray", payload: [:]) {
-                _ = LibXray.invoke(request)
+                _ = GoLibXrayInvoke(request)
             }
             DispatchQueue.main.async {
                 self?.isRunning = false
