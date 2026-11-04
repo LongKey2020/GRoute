@@ -86,13 +86,19 @@ public sealed class WireGuardEngine
 
     private static async Task RunElevatedAsync(string fileName, IEnumerable<string> arguments, CancellationToken token)
     {
-        var start = new ProcessStartInfo(fileName) { UseShellExecute = true, Verb = "runas" };
-        foreach (var argument in arguments) start.ArgumentList.Add(argument);
-        using var process = Process.Start(start)
-            ?? throw new InvalidOperationException("Could not start the elevated WireGuard operation.");
-        await process.WaitForExitAsync(token);
-        if (process.ExitCode != 0)
-            throw new InvalidOperationException($"The elevated command failed with exit code {process.ExitCode}.");
+        // Never invoke the Windows UAC consent UI. The app runs with the current
+        // user's existing token; machine-level tunnel operations require that
+        // the signed-in account already has administrator rights.
+        var result = await RunAsync(fileName, arguments, token);
+        if (result.ExitCode != 0)
+        {
+            var details = string.IsNullOrWhiteSpace(result.Output)
+                ? "No command output was returned."
+                : result.Output.Trim();
+            throw new InvalidOperationException(
+                $"The operation failed (exit code {result.ExitCode}). LRoute does not request UAC elevation. " +
+                $"Run Windows under an administrator account with UAC disabled, then retry. Details: {details}");
+        }
     }
 
     private static async Task<(int ExitCode, string Output)> RunAsync(
