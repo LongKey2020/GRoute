@@ -31,6 +31,19 @@ jobs:
         run: dotnet build windows/LRoute.Windows/LRoute.Windows.csproj -c Release
       - name: Publish self-contained Windows x64 app
         run: dotnet publish windows/LRoute.Windows/LRoute.Windows.csproj -c Release -r win-x64 --self-contained true -o artifacts/LRoute-win-x64
+      - name: Bundle Xray-core Windows x64
+        shell: pwsh
+        run: |
+          $version = "v26.10.31"
+          $archive = Join-Path $env:RUNNER_TEMP "Xray-windows-64.zip"
+          $destination = "artifacts/LRoute-win-x64"
+          Invoke-WebRequest -Uri "https://github.com/XTLS/Xray-core/releases/download/$version/Xray-windows-64.zip" -OutFile $archive
+          $extract = Join-Path $env:RUNNER_TEMP "xray-extract"
+          Expand-Archive -Path $archive -DestinationPath $extract -Force
+          New-Item -ItemType Directory -Path "$destination/xray" -Force | Out-Null
+          Copy-Item -Path "$extract/*" -Destination "$destination/xray" -Recurse -Force
+          if (!(Test-Path "$destination/xray/xray.exe")) { throw "xray.exe was not found in the official release archive." }
+          & "$destination/xray/xray.exe" version
       - name: Upload Windows x64 artifact
         uses: actions/upload-artifact@v4
         with:
