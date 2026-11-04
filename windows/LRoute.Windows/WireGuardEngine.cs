@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
-using System.Text;
 
 namespace LRoute.Windows;
 
@@ -22,19 +21,18 @@ public sealed class WireGuardEngine
 
     public async Task ConnectAsync(ProfileItem profile, CancellationToken cancellationToken = default)
     {
-        if (!string.Equals(profile.Type, "WireGuard / AmneziaWG", StringComparison.OrdinalIgnoreCase))
-            throw new NotSupportedException("This profile type is not supported by the WireGuard engine yet.");
+        if (profile.Type != "WireGuard")
+            throw new NotSupportedException("Only standard WireGuard profiles are currently supported.");
 
-        var executable = FindExecutable();
-        if (executable is null)
-            throw new FileNotFoundException("WireGuard for Windows is not installed. Install the official WireGuard client first.");
-
+        var executable = FindExecutable()
+            ?? throw new FileNotFoundException("WireGuard for Windows is not installed. Install the official client first.");
         if (!File.Exists(profile.FilePath))
-            throw new FileNotFoundException("The original profile file could not be found.", profile.FilePath);
+            throw new FileNotFoundException("The selected profile file could not be found.", profile.FilePath);
+        if (string.IsNullOrWhiteSpace(profile.TunnelName))
+            throw new InvalidOperationException("The profile has no tunnel identifier. Remove and re-import this profile.");
 
-        var tunnelName = profile.TunnelName;
         Directory.CreateDirectory(ProgramDataDirectory);
-        var configPath = Path.Combine(ProgramDataDirectory, tunnelName + ".conf.dpapi");
+        var configPath = Path.Combine(ProgramDataDirectory, profile.TunnelName + ".conf.dpapi");
         var plainConfig = await File.ReadAllBytesAsync(profile.FilePath, cancellationToken);
         var encryptedConfig = ProtectedData.Protect(plainConfig, null, DataProtectionScope.LocalMachine);
         await File.WriteAllBytesAsync(configPath, encryptedConfig, cancellationToken);
@@ -46,24 +44,21 @@ public sealed class WireGuardEngine
         }, cancellationToken);
 
         await RunElevatedAsync(executable, new[] { "/installtunnelservice", configPath }, cancellationToken);
-        var serviceName = "WireGuardTunnel$" + tunnelName;
+        var serviceName = "WireGuardTunnel$" + profile.TunnelName;
         if (!await IsServiceRunningAsync(serviceName, cancellationToken))
-            throw new InvalidOperationException("WireGuard service was installed but did not reach the Running state. Check the WireGuard log.");
+            throw new InvalidOperationException("WireGuard did not report the tunnel service as Running. Check the WireGuard log.");
     }
 
     public async Task DisconnectAsync(ProfileItem profile, CancellationToken cancellationToken = default)
     {
-        var executable = FindExecutable();
-        if (executable is null)
-            throw new FileNotFoundException("WireGuard for Windows was not found.");
-
+        var executable = FindExecutable()
+            ?? throw new FileNotFoundException("WireGuard for Windows was not found.");
         var serviceName = "WireGuardTunnel$" + profile.TunnelName;
-        if (!await ServiceExistsAsync(serviceName, cancellationToken))
-            return;
+        if (!await ServiceExistsAsync(serviceName, cancellationToken)) return;
 
         await RunElevatedAsync(executable, new[] { "/uninstalltunnelservice", profile.TunnelName }, cancellationToken);
         var configPath = Path.Combine(ProgramDataDirectory, profile.TunnelName + ".conf.dpapi");
-        try { if (File.Exists(configPath)) File.Delete(configPath); } catch { /* Best-effort cleanup after service removal. */ }
+        try { if (File.Exists(configPath)) File.Delete(configPath); } catch { }
     }
 
     public async Task<bool> IsConnectedAsync(ProfileItem profile, CancellationToken cancellationToken = default)
@@ -71,13 +66,13 @@ public sealed class WireGuardEngine
 
     private static async Task<bool> ServiceExistsAsync(string serviceName, CancellationToken token)
     {
-        var result = await RunAsync("sc.exe", new[] { "query", serviceName }, false, token);
+        var result = await RunAsync("sc.exe", new[] { "query", serviceName }, token);
         return result.ExitCode == 0;
     }
 
     private static async Task<bool> IsServiceRunningAsync(string serviceName, CancellationToken token)
     {
-        var result = await RunAsync("sc.exe", new[] { "query", serviceName }, false, token);
+        var result = await RunAsync("sc.exe", new[] { "query", serviceName }, token);
         return result.ExitCode == 0 && result.Output.Contains("RUNNING", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -85,14 +80,15 @@ public sealed class WireGuardEngine
     {
         var start = new ProcessStartInfo(fileName) { UseShellExecute = true, Verb = "runas" };
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the elevated WireGuard operation.");
+        using var process = Process.Start(start)
+            ?? throw new InvalidOperationException("Could not start the elevated WireGuard operation.");
         await process.WaitForExitAsync(token);
         if (process.ExitCode != 0)
             throw new InvalidOperationException($"The elevated command failed with exit code {process.ExitCode}.");
     }
 
     private static async Task<(int ExitCode, string Output)> RunAsync(
-        string fileName, IEnumerable<string> arguments, bool elevated, CancellationToken token)
+        string fileName, IEnumerable<string> arguments, CancellationToken token)
     {
         var start = new ProcessStartInfo(fileName)
         {
@@ -102,7 +98,8 @@ public sealed class WireGuardEngine
             CreateNoWindow = true
         };
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
-        using var process = Process.Start(start) ?? throw new InvalidOperationException($"Could not start {fileName}.");
+        using var process = Process.Start(start)
+            ?? throw new InvalidOperationException($"Could not start {fileName}.");
         var stdout = process.StandardOutput.ReadToEndAsync(token);
         var stderr = process.StandardError.ReadToEndAsync(token);
         await process.WaitForExitAsync(token);
