@@ -1770,7 +1770,7 @@ private fun ConnectionScreen(
     Box(modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalHazeState provides hazeState) {
             Column(
-                Modifier.fillMaxSize().padding(16.dp),
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Card(
@@ -1950,6 +1950,15 @@ private fun ConnectionScreen(
                     ) { Text("SCAN QR", maxLines = 1) }
                 }
 
+                BounceOutlinedButton(
+                    onClick = onImportConfig,
+                    minHeight = 48.dp,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("IMPORT CONFIG FILE", maxLines = 1)
+                }
+
                 var btnPressed by remember { mutableStateOf(false) }
                 val glowActive = !connected && selectedConfig != null && !btnPressed
                 val glowAlpha by animateFloatAsState(
@@ -2125,9 +2134,9 @@ private fun ConnectionScreen(
 
                 val globeStyle by store.globeStyle.collectAsState()
                 if (globeStyle == "dots") {
-                    DotGlobeSection(Modifier.weight(1f).fillMaxWidth())
+                    DotGlobeSection(Modifier.fillMaxWidth().height(190.dp))
                 } else {
-                    EarthSection(Modifier.weight(1f).fillMaxWidth())
+                    EarthSection(Modifier.fillMaxWidth().height(190.dp))
                 }
             }
         }
