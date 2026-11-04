@@ -40,8 +40,10 @@ public static class RuntimeProfileBuilder
                 break;
             case "socks":
             case "http":
-                settings["servers"] = new JsonArray(new JsonObject { ["address"] = profile.Server, ["port"] = profile.Port,
-                    ["users"] = new JsonArray(new JsonObject { ["user"] = profile.UserId, ["pass"] = profile.Password }) });
+                var server = new JsonObject { ["address"] = profile.Server, ["port"] = profile.Port };
+                if (!string.IsNullOrEmpty(profile.UserId) || !string.IsNullOrEmpty(profile.Password))
+                    server["users"] = new JsonArray(new JsonObject { ["user"] = profile.UserId, ["pass"] = profile.Password });
+                settings["servers"] = new JsonArray(server);
                 break;
             default: throw new NotSupportedException($"Protocol '{profile.Protocol}' is not supported by this runtime builder yet.");
         }
