@@ -1,298 +1,136 @@
-using Microsoft.Win32;
-using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using LRoute.Windows.Domain;
+using LRoute.Windows.Infrastructure;
 
 namespace LRoute.Windows;
 
 public partial class MainWindow : Window
 {
-    private readonly ObservableCollection<ProfileItem> _profiles = new();
-    private readonly XrayEngine _xray = new();
-    private ProfileItem? _activeProfile;
-
-    private static readonly string DataDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LRoute");
-    private static readonly string ProfileIndexPath = Path.Combine(DataDirectory, "profiles.json");
+    private readonly ProfileStore _store = new();
+    private readonly ObservableCollection<ProxyProfile> _profiles = [];
+    private readonly XrayEngine _engine = new();
+    private ProxyProfile? _active;
+    private string RuntimeDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LRoute", "Runtime");
 
     public MainWindow()
     {
         InitializeComponent();
         ProfilesList.ItemsSource = _profiles;
-        LoadProfiles();
-        RefreshProfileView();
-        UpdateEngineStatus();
+        foreach (var profile in _store.Load()) _profiles.Add(profile);
+        RefreshUi();
     }
 
-    private void ProfileSelector_Click(object sender, RoutedEventArgs e) => ImportButton_Click(sender, e);
-
-    private void VpnSettingsButton_Click(object sender, RoutedEventArgs e)
+    private void Import_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show(this, "DNS and Split Tunnel controls are not connected in this Windows port yet.",
-            "LRoute • VPN Settings", MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-
-    private void ManualConfigButton_Click(object sender, RoutedEventArgs e)
-    {
-        var editor = new Window
+        var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "LRoute profiles (*.json;*.txt;*.conf)|*.json;*.txt;*.conf|All files (*.*)|*.*", Multiselect = true };
+        if (dialog.ShowDialog(this) != true) return;
+        var added = 0;
+        foreach (var file in dialog.FileNames)
         {
-            Title = "LRoute • Manual Config", Width = 680, Height = 520,
-            MinWidth = 520, MinHeight = 360, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Owner = this, Background = System.Windows.Media.Brushes.Black,
-            Foreground = System.Windows.Media.Brushes.White, WindowStyle = WindowStyle.SingleBorderWindow,
-            ResizeMode = ResizeMode.CanResize
-        };
-        var layout = new DockPanel { Margin = new Thickness(16) };
-        var save = new Button { Content = "SAVE PROFILE", Height = 44, Margin = new Thickness(0, 12, 0, 0),
-            Background = System.Windows.Media.Brushes.Black, Foreground = System.Windows.Media.Brushes.White };
+            try
+            {
+                var text = File.ReadAllText(file);
+                foreach (var profile in ProxyLinkParser.ParseMany(text))
+                {
+                    _profiles.Add(profile with { Name = profile.Name == "New profile" ? Path.GetFileNameWithoutExtension(file) : profile.Name });
+                    added++;
+                }
+            }
+            catch (Exception ex) { MessageBox.Show(this, $"{Path.GetFileName(file)}: {ex.Message}", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        }
+        Persist();
+        RefreshUi();
+        if (added == 0) MessageBox.Show(this, "No supported Xray profiles were found. WireGuard and QR import are not included.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void Manual_Click(object sender, RoutedEventArgs e)
+    {
+        var editor = new Window { Title = "LRoute • Manual profile", Owner = this, Width = 650, Height = 430, MinWidth = 500, MinHeight = 320,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = new SolidColorBrush(Color.FromRgb(25,27,31)), Foreground = Brushes.White };
+        var panel = new DockPanel { Margin = new Thickness(16) };
+        var save = new Button { Content = "IMPORT PROFILE TEXT", Height = 42, Margin = new Thickness(0,12,0,0), Background = new SolidColorBrush(Color.FromRgb(242,138,53)), Foreground = Brushes.Black };
         DockPanel.SetDock(save, Dock.Bottom);
-        var input = new TextBox { AcceptsReturn = true, AcceptsTab = true, TextWrapping = TextWrapping.NoWrap,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 13,
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(20,20,20)),
-            Foreground = System.Windows.Media.Brushes.White, CaretBrush = System.Windows.Media.Brushes.White,
-            Padding = new Thickness(10), Text = "{\n  \"log\": { \"loglevel\": \"warning\" },\n  \"inbounds\": [],\n  \"outbounds\": []\n}" };
-        layout.Children.Add(save); layout.Children.Add(input); editor.Content = layout;
+        var input = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Background = new SolidColorBrush(Color.FromRgb(16,17,19)), Foreground = Brushes.White, CaretBrush = Brushes.White, Padding = new Thickness(12),
+            FontFamily = new FontFamily("Consolas"), FontSize = 13 };
+        panel.Children.Add(save); panel.Children.Add(input); editor.Content = panel;
         save.Click += (_, _) =>
         {
             try
             {
-                using var doc = JsonDocument.Parse(input.Text);
-                Directory.CreateDirectory(DataDirectory);
-                var path = Path.Combine(DataDirectory, "manual-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".json");
-                File.WriteAllText(path, input.Text);
-                _profiles.Add(new ProfileItem(Path.GetFileNameWithoutExtension(path), "Xray JSON", path,
-                    "LRoute-" + Guid.NewGuid().ToString("N")[..12]));
-                SaveProfiles(); RefreshProfileView(); editor.DialogResult = true; editor.Close();
+                var parsed = ProxyLinkParser.ParseMany(input.Text);
+                if (parsed.Count == 0) throw new FormatException("No supported VLESS, VMess, Trojan, Shadowsocks, SOCKS or HTTP profile was found.");
+                foreach (var profile in parsed) _profiles.Add(profile);
+                Persist(); RefreshUi(); editor.Close();
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show(editor, "Invalid JSON or could not save the profile.\\n" + ex.Message,
-                    "LRoute • Manual Config", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            catch (Exception ex) { MessageBox.Show(editor, ex.Message, "Invalid profile", MessageBoxButton.OK, MessageBoxImage.Warning); }
         };
         editor.ShowDialog();
     }
 
-    private void ImportButton_Click(object sender, RoutedEventArgs e)
+    private async void Connect_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog
+        if (_engine.IsRunning)
         {
-            Title = "Import VPN profile",
-            Filter = "Xray profiles (*.json;*.txt)|*.json;*.txt|All files (*.*)|*.*",
-            Multiselect = true,
-            CheckFileExists = true
-        };
-        if (dialog.ShowDialog(this) != true) return;
-
-        var imported = 0;
-        foreach (var file in dialog.FileNames)
-        {
-            var extension = Path.GetExtension(file).ToLowerInvariant();
-            if (extension is not (".json" or ".txt"))
-            {
-                MessageBox.Show(this, "This profile format is not supported in this release.",
-                    "LRoute • Unsupported profile", MessageBoxButton.OK, MessageBoxImage.Information);
-                continue;
-            }
-            var type = extension == ".json" ? "Xray JSON" : "Text configuration (engine pending)";
-            if (_profiles.Any(p => string.Equals(p.FilePath, file, StringComparison.OrdinalIgnoreCase)))
-                continue;
-
-            _profiles.Add(new ProfileItem(
-                Path.GetFileNameWithoutExtension(file), type, file,
-                "LRoute-" + Guid.NewGuid().ToString("N")[..12]));
-            imported++;
+            try { await _engine.DisconnectAsync(); _active = null; }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "Disconnect failed", MessageBoxButton.OK, MessageBoxImage.Error); }
+            RefreshUi(); return;
         }
-
-        SaveProfiles();
-        RefreshProfileView();
-        MessageBox.Show(this,
-            imported == 0 ? "The selected profiles were already in your list." : $"Imported {imported} profile(s).",
-            "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-
-    private async void ConnectButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (ProfilesList.SelectedItem is not ProfileItem selected || selected.Type != "Xray JSON") return;
-        ConnectButton.IsEnabled = false;
-        try
+        if (ProfilesList.SelectedItem is not ProxyProfile profile)
         {
-            if (_xray.IsRunning && ReferenceEquals(selected, _activeProfile))
-            {
-                await _xray.DisconnectAsync();
-                _activeProfile = null;
-                ConnectionMessage.Text = "Xray-core stopped.";
-            }
-            else
-            {
-                if (_xray.IsRunning)
-                {
-                    await _xray.DisconnectAsync();
-                    _activeProfile = null;
-                }
-                var tunMode = TunModeCheck.IsChecked == true;
-                ConnectionMessage.Text = tunMode
-                    ? "Requesting administrator approval and preparing the Windows TUN adapter…"
-                    : "Validating Xray JSON and starting local proxy engine…";
-                await _xray.ConnectAsync(selected.FilePath, tunMode);
-                _activeProfile = selected;
-                ConnectionMessage.Text = tunMode
-                    ? $"Xray TUN engine running • {selected.Name}"
-                    : $"Xray-core running • {selected.Name} (local proxy mode)";
-            }
-        }
-        catch (Exception ex)
-        {
-            ConnectionMessage.Text = "Connection failed";
-            MessageBox.Show(this, ex.Message, "LRoute • Connection",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-        finally
-        {
-            UpdateEngineStatus();
-            UpdateSelectedProfileState();
-        }
-    }
-
-    private void ProfilesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        UpdateSelectedProfileState();
-    }
-
-    private void UpdateSelectedProfileState()
-    {
-        var selected = ProfilesList.SelectedItem as ProfileItem;
-        var activeXray = _xray.IsRunning && selected is not null && ReferenceEquals(selected, _activeProfile);
-        var active = activeXray;
-        ConnectButton.Content = active ? "DISCONNECT" : "CONNECT";
-        ConnectButton.IsEnabled = selected?.Type == "Xray JSON" || active;
-        TunModeCheck.IsEnabled = !_xray.IsRunning;
-    }
-
-    private void RemoveProfile_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is not ProfileItem profile) return;
-        if (ReferenceEquals(profile, _activeProfile))
-        {
-            MessageBox.Show(this, "Disconnect this profile before removing it.", "LRoute",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, "Select a profile first.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        _profiles.Remove(profile);
-        SaveProfiles();
-        RefreshProfileView();
-    }
-
-    private void LoadProfiles()
-    {
         try
         {
-            if (!File.Exists(ProfileIndexPath)) return;
-            var saved = JsonSerializer.Deserialize<List<ProfileItem>>(File.ReadAllText(ProfileIndexPath));
-            if (saved is null) return;
-            foreach (var item in saved.Where(p => File.Exists(p.FilePath)))
-            {
-                var normalized = item.Type == "Xray JSON (engine pending)"
-                    ? item with { Type = "Xray JSON" }
-                    : item;
-                _profiles.Add(normalized.EnsureTunnelName());
-            }
+            Directory.CreateDirectory(RuntimeDirectory);
+            var config = RuntimeProfileBuilder.Build(profile);
+            var path = Path.Combine(RuntimeDirectory, $"profile-{profile.Id}.json");
+            await File.WriteAllTextAsync(path, config);
+            await _engine.ConnectAsync(path, false);
+            _active = profile;
         }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, $"Saved profile list could not be loaded.\n{ex.Message}",
-                "LRoute", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Connection failed", MessageBoxButton.OK, MessageBoxImage.Error); }
+        RefreshUi();
     }
 
-    private void SaveProfiles()
+    private void Remove_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            Directory.CreateDirectory(DataDirectory);
-            File.WriteAllText(ProfileIndexPath,
-                JsonSerializer.Serialize(_profiles.ToArray(), new JsonSerializerOptions { WriteIndented = true }));
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, $"Profile list could not be saved.\n{ex.Message}",
-                "LRoute", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
+        if (ProfilesList.SelectedItem is not ProxyProfile profile) return;
+        if (_active?.Id == profile.Id) { MessageBox.Show(this, "Disconnect before removing the active profile."); return; }
+        _profiles.Remove(profile); Persist(); RefreshUi();
     }
 
-    private void RefreshProfileView()
+    private void ProfilesList_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshUi();
+    private void Overview_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Overview"; PageSubtitle.Text = "Manage your private network connections."; }
+    private void Profiles_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Profiles"; PageSubtitle.Text = "Import and manage Xray-compatible profiles."; }
+    private void Settings_Click(object sender, RoutedEventArgs e) { MessageBox.Show(this, "Settings modules are being rebuilt from the Android source.", "LRoute Settings"); }
+    private void Menu_Click(object sender, RoutedEventArgs e) { MessageBox.Show(this, "LRoute Windows • WireGuard and QR scanning are excluded.", "About LRoute"); }
+
+    private void Persist() => _store.Save(_profiles);
+    private void RefreshUi()
     {
-        var hasProfiles = _profiles.Count > 0;
-        EmptyState.Visibility = hasProfiles ? Visibility.Collapsed : Visibility.Visible;
-        ProfilesList.Visibility = hasProfiles ? Visibility.Visible : Visibility.Collapsed;
+        ProfileCount.Text = $"{_profiles.Count} saved profile{(_profiles.Count == 1 ? "" : "s")}";
+        var running = _engine.IsRunning;
+        StatusText.Text = running ? "Engine running" : "Disconnected";
+        StatusDot.Fill = running ? new SolidColorBrush(Color.FromRgb(65,190,125)) : new SolidColorBrush(Color.FromRgb(119,127,137));
+        EngineState.Text = running ? "Running" : "Stopped";
+        ConnectButton.Content = running ? "Disconnect" : "Connect";
+        EndpointText.Text = _active?.DisplayEndpoint ?? "No active profile";
+        ConnectButton.IsEnabled = running || ProfilesList.SelectedItem is ProxyProfile;
     }
 
-    private void UpdateEngineStatus()
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
-        if (_xray.IsRunning)
+        if (_engine.IsRunning)
         {
-            EngineStatus.Text = _xray.IsTunMode
-                ? "Xray TUN engine running • Wintun"
-                : "Xray-core process running • local proxy";
-            ConnectionStatus.Text = _xray.IsTunMode ? "●  TUN ENGINE RUNNING" : "●  ENGINE RUNNING";
-            ConnectionPillText.Text = _xray.IsTunMode ? "● TUN RUNNING" : "● ENGINE RUNNING";
-            ConnectionPillText.Foreground = System.Windows.Media.Brushes.White;
-            ConnectionPillBorder.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(35, 35, 35));
-            ConnectionPillBorder.BorderBrush = System.Windows.Media.Brushes.Gray;
-            ConnectionMessage.Text = _xray.IsTunMode
-                ? $"Windows TUN engine running • {_activeProfile?.Name}"
-                : $"Xray-core running • {_activeProfile?.Name} (local proxy mode)";
+            try { _engine.DisconnectAsync().GetAwaiter().GetResult(); }
+            catch { e.Cancel = true; MessageBox.Show(this, "Disconnect the tunnel before closing LRoute.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Warning); }
         }
-        else
-        {
-            EngineStatus.Text = _xray.FindExecutable() is not null
-                ? "Xray-core ready"
-                : "Xray-core runtime missing";
-            ConnectionStatus.Text = "●  DISCONNECTED";
-            ConnectionPillText.Text = "● DISCONNECTED";
-            ConnectionPillText.Foreground = System.Windows.Media.Brushes.LightGray;
-            ConnectionPillBorder.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(32, 32, 32));
-            ConnectionPillBorder.BorderBrush = System.Windows.Media.Brushes.Gray;
-            ConnectionMessage.Text = "Select a supported profile to start a connection.";
-        }
-        UpdateSelectedProfileState();
-    }
-
-    protected override void OnClosing(CancelEventArgs e)
-    {
-        try
-        {
-            if (_xray.IsTunMode)
-                _xray.DisconnectAsync().GetAwaiter().GetResult();
-
-        }
-        catch (Exception ex)
-        {
-            e.Cancel = true;
-            MessageBox.Show(this,
-                $"The active VPN could not be shut down safely. LRoute will remain open so you can retry disconnecting.\n\n{ex.Message}",
-                "LRoute • Safe shutdown", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
         base.OnClosing(e);
     }
-
-    protected override void OnClosed(EventArgs e)
-    {
-        _xray.Dispose();
-        base.OnClosed(e);
-    }
-}
-
-public sealed record ProfileItem(string Name, string Type, string FilePath, string TunnelName = "")
-{
-    public ProfileItem EnsureTunnelName() =>
-        string.IsNullOrWhiteSpace(TunnelName)
-            ? this with { TunnelName = "LRoute-" + Guid.NewGuid().ToString("N")[..12] }
-            : this;
 }
