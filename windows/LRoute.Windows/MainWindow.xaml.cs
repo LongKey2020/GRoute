@@ -16,6 +16,8 @@ public partial class MainWindow : Window
     private readonly SubscriptionFetcher _subscriptions = new();
     private ProxyProfile? _active;
     private bool _storeReady = true;
+    private bool _allowClose;
+    private bool _closingInProgress;
     private string RuntimeDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LRoute", "Runtime");
 
     public MainWindow()
@@ -158,13 +160,37 @@ public partial class MainWindow : Window
         ConnectButton.IsEnabled = running || ProfilesList.SelectedItem is ProxyProfile;
     }
 
-    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        if (_allowClose)
+        {
+            base.OnClosing(e);
+            return;
+        }
+
         if (_engine.IsRunning)
         {
-            try { _engine.DisconnectAsync().GetAwaiter().GetResult(); }
-            catch { e.Cancel = true; MessageBox.Show(this, "Disconnect the tunnel before closing LRoute.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            e.Cancel = true;
+            if (_closingInProgress) return;
+            _closingInProgress = true;
+            IsEnabled = false;
+            try
+            {
+                await _engine.DisconnectAsync();
+                _allowClose = true;
+                Close();
+            }
+            catch (Exception ex)
+            {
+                IsEnabled = true;
+                _closingInProgress = false;
+                MessageBox.Show(this,
+                    $"LRoute could not safely disconnect, so the application will remain open.\\n\\n{ex.Message}",
+                    "Disconnect required", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            return;
         }
+
         base.OnClosing(e);
     }
 }
