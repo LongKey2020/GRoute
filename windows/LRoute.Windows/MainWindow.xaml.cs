@@ -138,7 +138,12 @@ public partial class MainWindow : Window
     private void Persist()
     {
         if (!_storeReady)
-            throw new InvalidOperationException("Profile storage is unavailable. LRoute has not overwritten the unreadable vault; resolve the storage issue before saving changes.");
+        {
+            MessageBox.Show(this,
+                "These changes are only in memory and will not be saved. The unreadable profile vault remains untouched.",
+                "Profile storage unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         _store.Save(_profiles);
     }
     private void RefreshUi()
