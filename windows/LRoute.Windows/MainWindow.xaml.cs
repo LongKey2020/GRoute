@@ -168,7 +168,7 @@ public partial class MainWindow : Window
     }
 
     private void ProfilesList_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshUi();
-    private void Overview_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Overview"; PageSubtitle.Text = "Manage your private network connections."; }
+    private void Overview_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Overview"; PageSubtitle.Text = "Route WinINET-aware apps through your selected Xray profile."; }
     private void Profiles_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Profiles"; PageSubtitle.Text = "Import and manage Xray-compatible profiles."; }
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
