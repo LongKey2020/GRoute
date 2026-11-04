@@ -23,6 +23,10 @@ public sealed record ProxyProfile
     public string SourceUri { get; init; } = "";
     public string RawJson { get; init; } = "";
     public DateTimeOffset AddedAt { get; init; } = DateTimeOffset.UtcNow;
-    public string DisplayEndpoint => string.IsNullOrWhiteSpace(Server) ? "No endpoint" : $"{Server}:{Port}";
+    public string DisplayEndpoint => !string.IsNullOrWhiteSpace(Server)
+        ? $"{Server}:{Port}"
+        : Protocol.Equals("json", StringComparison.OrdinalIgnoreCase)
+            ? "Imported Xray configuration"
+            : "No endpoint";
     public string ProtocolLabel => Protocol.ToUpperInvariant();
 }
