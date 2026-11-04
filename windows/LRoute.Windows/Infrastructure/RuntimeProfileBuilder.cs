@@ -30,7 +30,7 @@ public static class RuntimeProfileBuilder
                 break;
             case "vmess":
                 settings["vnext"] = new JsonArray(new JsonObject { ["address"] = profile.Server, ["port"] = profile.Port,
-                    ["users"] = new JsonArray(new JsonObject { ["id"] = profile.UserId, ["security"] = profile.Method is "" ? "auto" : profile.Method, ["alterId"] = 0 }) });
+                    ["users"] = new JsonArray(new JsonObject { ["id"] = profile.UserId, ["security"] = profile.Method is "" ? "auto" : profile.Method, ["alterId"] = profile.AlterId }) });
                 break;
             case "trojan":
                 settings["servers"] = new JsonArray(new JsonObject { ["address"] = profile.Server, ["port"] = profile.Port, ["password"] = profile.Password });
