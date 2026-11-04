@@ -13,6 +13,7 @@ public partial class MainWindow : Window
     private readonly ProfileStore _store = new();
     private readonly ObservableCollection<ProxyProfile> _profiles = [];
     private readonly XrayEngine _engine = new();
+    private readonly SubscriptionFetcher _subscriptions = new();
     private ProxyProfile? _active;
     private string RuntimeDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LRoute", "Runtime");
 
@@ -24,7 +25,7 @@ public partial class MainWindow : Window
         RefreshUi();
     }
 
-    private void Import_Click(object sender, RoutedEventArgs e)
+    private async void Import_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "LRoute profiles (*.json;*.txt;*.conf)|*.json;*.txt;*.conf|All files (*.*)|*.*", Multiselect = true };
         if (dialog.ShowDialog(this) != true) return;
@@ -33,7 +34,8 @@ public partial class MainWindow : Window
         {
             try
             {
-                var text = File.ReadAllText(file);
+                var text = await File.ReadAllTextAsync(file);
+                text = await FetchSubscriptionIfUrlAsync(text);
                 foreach (var profile in ProxyLinkParser.ParseMany(text))
                 {
                     _profiles.Add(profile with { Name = profile.Name == "New profile" ? Path.GetFileNameWithoutExtension(file) : profile.Name });
@@ -58,11 +60,12 @@ public partial class MainWindow : Window
             Background = new SolidColorBrush(Color.FromRgb(16,17,19)), Foreground = Brushes.White, CaretBrush = Brushes.White, Padding = new Thickness(12),
             FontFamily = new FontFamily("Consolas"), FontSize = 13 };
         panel.Children.Add(save); panel.Children.Add(input); editor.Content = panel;
-        save.Click += (_, _) =>
+        save.Click += async (_, _) =>
         {
             try
             {
-                var parsed = ProxyLinkParser.ParseMany(input.Text);
+                var source = await FetchSubscriptionIfUrlAsync(input.Text);
+                var parsed = ProxyLinkParser.ParseMany(source);
                 if (parsed.Count == 0) throw new FormatException("No supported VLESS, VMess, Trojan, Shadowsocks, SOCKS or HTTP profile was found.");
                 foreach (var profile in parsed) _profiles.Add(profile);
                 Persist(); RefreshUi(); editor.Close();
@@ -110,6 +113,15 @@ public partial class MainWindow : Window
     private void Profiles_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Profiles"; PageSubtitle.Text = "Import and manage Xray-compatible profiles."; }
     private void Settings_Click(object sender, RoutedEventArgs e) { MessageBox.Show(this, "Settings modules are being rebuilt from the Android source.", "LRoute Settings"); }
     private void Menu_Click(object sender, RoutedEventArgs e) { MessageBox.Show(this, "LRoute Windows • WireGuard and QR scanning are excluded.", "About LRoute"); }
+
+    private async Task<string> FetchSubscriptionIfUrlAsync(string value)
+    {
+        var candidate = value.Trim();
+        if (Uri.TryCreate(candidate, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp))
+            return await _subscriptions.GetContentAsync(candidate);
+        return value;
+    }
 
     private void Persist() => _store.Save(_profiles);
     private void RefreshUi()
