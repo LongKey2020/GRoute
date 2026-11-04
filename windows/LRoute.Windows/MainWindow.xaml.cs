@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
@@ -287,13 +288,33 @@ public partial class MainWindow : Window
         catch { return "Unreadable configuration"; }
     }
 
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        try
+        {
+            if (_xray.IsTunMode)
+                _xray.DisconnectAsync().GetAwaiter().GetResult();
+
+            if (_activeWireGuardProfile is not null)
+            {
+                _wireGuard.DisconnectAsync(_activeWireGuardProfile).GetAwaiter().GetResult();
+                _activeWireGuardProfile = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            e.Cancel = true;
+            MessageBox.Show(this,
+                $"The active VPN could not be shut down safely. LRoute will remain open so you can retry disconnecting.\n\n{ex.Message}",
+                "LRoute • Safe shutdown", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        base.OnClosing(e);
+    }
+
     protected override void OnClosed(EventArgs e)
     {
-        if (_activeWireGuardProfile is not null)
-        {
-            try { _wireGuard.DisconnectAsync(_activeWireGuardProfile).GetAwaiter().GetResult(); }
-            catch { /* Leave Windows service diagnostics available if shutdown cleanup fails. */ }
-        }
         _xray.Dispose();
         base.OnClosed(e);
     }
