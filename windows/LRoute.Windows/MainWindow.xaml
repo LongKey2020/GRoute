@@ -51,7 +51,7 @@
      <StackPanel VerticalAlignment="Center">
       <TextBlock Text="CONNECTION" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold"/>
       <TextBlock x:Name="ConnectionMessage" Text="Select a WireGuard profile to connect." FontSize="22" FontWeight="SemiBold" Margin="0,9,0,4"/>
-      <TextBlock Text="WireGuard tunnel service • current Windows account permissions • no UAC prompt" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+      <TextBlock Text="WireGuard tunnel service • administrator approval required" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
      </StackPanel>
      <Button x:Name="ConnectButton" Grid.Column="1" Content="CONNECT" IsEnabled="False" Click="ConnectButton_Click" Width="142" Height="44" Background="#FFFFFF" Foreground="#080808" BorderThickness="0" FontWeight="Bold" VerticalAlignment="Center"/>
     </Grid>
