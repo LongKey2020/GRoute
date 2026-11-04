@@ -11,7 +11,9 @@ public partial class MainWindow : Window
 {
     private readonly ObservableCollection<ProfileItem> _profiles = new();
     private readonly XrayEngine _xray = new();
+    private readonly WireGuardEngine _wireGuard = new();
     private ProfileItem? _activeProfile;
+    private ProfileItem? _activeWireGuardProfile;
 
     private static readonly string DataDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LRoute");
@@ -48,9 +50,6 @@ public partial class MainWindow : Window
                 ".txt" => "Text configuration (engine pending)",
                 _ => "Unknown configuration"
             };
-            if (type == "WireGuard")
-                type = "WireGuard (temporarily disabled)";
-
             if (_profiles.Any(p => string.Equals(p.FilePath, file, StringComparison.OrdinalIgnoreCase)))
                 continue;
 
@@ -73,35 +72,71 @@ public partial class MainWindow : Window
         ConnectButton.IsEnabled = false;
         try
         {
-            if (_xray.IsRunning && ReferenceEquals(selected, _activeProfile))
+            if (selected.Type == "WireGuard")
             {
-                await _xray.DisconnectAsync();
-                _activeProfile = null;
-                ConnectionMessage.Text = "Xray-core stopped.";
+                if (ReferenceEquals(selected, _activeWireGuardProfile))
+                {
+                    await _wireGuard.DisconnectAsync(selected);
+                    _activeWireGuardProfile = null;
+                    ConnectionMessage.Text = "WireGuard tunnel disconnected.";
+                }
+                else
+                {
+                    if (_xray.IsRunning)
+                    {
+                        await _xray.DisconnectAsync();
+                        _activeProfile = null;
+                    }
+                    if (_activeWireGuardProfile is not null)
+                    {
+                        await _wireGuard.DisconnectAsync(_activeWireGuardProfile);
+                        _activeWireGuardProfile = null;
+                    }
+
+                    ConnectionMessage.Text = "Requesting administrator approval and starting WireGuard tunnel…";
+                    await _wireGuard.ConnectAsync(selected);
+                    if (!await _wireGuard.IsConnectedAsync(selected))
+                        throw new InvalidOperationException("WireGuard did not report a RUNNING tunnel service.");
+                    _activeWireGuardProfile = selected;
+                    ConnectionMessage.Text = $"WireGuard connected • {selected.Name}";
+                }
+            }
+            else if (selected.Type == "Xray JSON")
+            {
+                if (_xray.IsRunning && ReferenceEquals(selected, _activeProfile))
+                {
+                    await _xray.DisconnectAsync();
+                    _activeProfile = null;
+                    ConnectionMessage.Text = "Xray-core stopped.";
+                }
+                else
+                {
+                    if (_activeWireGuardProfile is not null)
+                    {
+                        await _wireGuard.DisconnectAsync(_activeWireGuardProfile);
+                        _activeWireGuardProfile = null;
+                    }
+                    ConnectionMessage.Text = "Validating Xray JSON and starting engine…";
+                    await _xray.ConnectAsync(selected.FilePath);
+                    _activeProfile = selected;
+                    ConnectionMessage.Text = $"Xray-core running • {selected.Name} (local proxy mode)";
+                }
             }
             else
             {
-                if (selected.Type != "Xray JSON")
-                    throw new NotSupportedException(
-                        "This profile is not supported by the current Xray stage. Import an Xray-core JSON configuration.");
-
-                ConnectionMessage.Text = "Validating Xray JSON and starting engine…";
-                await _xray.ConnectAsync(selected.FilePath);
-                _activeProfile = selected;
-                ConnectionMessage.Text = $"Xray-core running • {selected.Name} (local proxy mode)";
+                throw new NotSupportedException(
+                    "This profile type is not enabled yet. Standard WireGuard and Xray JSON are supported in this build.");
             }
         }
         catch (Exception ex)
         {
-            _activeProfile = null;
-            ConnectionMessage.Text = "Xray-core failed to start";
-            MessageBox.Show(this, ex.Message, "LRoute • Xray-core",
+            ConnectionMessage.Text = "Connection failed";
+            MessageBox.Show(this, ex.Message, "LRoute • Connection",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
             UpdateEngineStatus();
-            ConnectButton.IsEnabled = ProfilesList.SelectedItem is ProfileItem;
             UpdateSelectedProfileState();
         }
     }
@@ -114,11 +149,11 @@ public partial class MainWindow : Window
     private void UpdateSelectedProfileState()
     {
         var selected = ProfilesList.SelectedItem as ProfileItem;
-        var active = _xray.IsRunning && selected is not null && ReferenceEquals(selected, _activeProfile);
-        ConnectButton.Content = active ? "STOP ENGINE" : "START XRAY";
-        ConnectButton.IsEnabled = selected?.Type == "Xray JSON" || active;
-        if (selected?.Type == "WireGuard (temporarily disabled)")
-            ConnectButton.IsEnabled = false;
+        var activeXray = _xray.IsRunning && selected is not null && ReferenceEquals(selected, _activeProfile);
+        var activeWireGuard = selected is not null && ReferenceEquals(selected, _activeWireGuardProfile);
+        var active = activeXray || activeWireGuard;
+        ConnectButton.Content = active ? "DISCONNECT" : "CONNECT";
+        ConnectButton.IsEnabled = selected?.Type is "Xray JSON" or "WireGuard" || active;
     }
 
     private void RemoveProfile_Click(object sender, RoutedEventArgs e)
@@ -181,7 +216,13 @@ public partial class MainWindow : Window
 
     private void UpdateEngineStatus()
     {
-        if (_xray.IsRunning)
+        if (_activeWireGuardProfile is not null)
+        {
+            EngineStatus.Text = "WireGuard tunnel service: RUNNING";
+            ConnectionStatus.Text = "●  CONNECTED";
+            ConnectionMessage.Text = $"WireGuard connected • {_activeWireGuardProfile.Name}";
+        }
+        else if (_xray.IsRunning)
         {
             EngineStatus.Text = "Xray-core process running";
             ConnectionStatus.Text = "●  ENGINE RUNNING";
@@ -193,7 +234,7 @@ public partial class MainWindow : Window
                 ? "Xray-core ready"
                 : "Xray-core runtime missing";
             ConnectionStatus.Text = "●  DISCONNECTED";
-            ConnectionMessage.Text = "Select an Xray JSON profile to start the engine.";
+            ConnectionMessage.Text = "Select a supported profile to start a connection.";
         }
         UpdateSelectedProfileState();
     }
@@ -220,6 +261,11 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        if (_activeWireGuardProfile is not null)
+        {
+            try { _wireGuard.DisconnectAsync(_activeWireGuardProfile).GetAwaiter().GetResult(); }
+            catch { /* Leave Windows service diagnostics available if shutdown cleanup fails. */ }
+        }
         _xray.Dispose();
         base.OnClosed(e);
     }
