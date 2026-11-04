@@ -116,21 +116,54 @@ public static class ProxyLinkParser
     private static void AddJson(JsonElement root, List<ProxyProfile> output)
     {
         if (root.ValueKind != JsonValueKind.Object) return;
+
+        // A complete Xray document is one importable profile. Keep the entire
+        // document together so routing rules, DNS, inbounds and outbound tags
+        // are not lost or duplicated when the user selects it.
         if (root.TryGetProperty("outbounds", out var outbounds) && outbounds.ValueKind == JsonValueKind.Array)
         {
-            foreach (var outbound in outbounds.EnumerateArray()) AddJsonOutbound(outbound, output, root);
+            var firstProxy = outbounds.EnumerateArray()
+                .FirstOrDefault(IsProxyOutbound);
+            if (firstProxy.ValueKind == JsonValueKind.Undefined) return;
+
+            var protocol = firstProxy.TryGetProperty("protocol", out var proto)
+                ? proto.GetString() ?? "json" : "json";
+            var name = firstProxy.TryGetProperty("tag", out var tag)
+                ? tag.GetString() ?? protocol : protocol;
+            var raw = root.GetRawText();
+            output.Add(new ProxyProfile
+            {
+                Name = string.IsNullOrWhiteSpace(name) ? "Imported Xray configuration" : name,
+                Protocol = "json",
+                RawJson = raw,
+                SourceUri = "json:" + raw
+            });
+            return;
         }
-        else AddJsonOutbound(root, output, root);
+
+        AddJsonOutbound(root, output, root);
+    }
+
+    private static bool IsProxyOutbound(JsonElement outbound)
+    {
+        if (outbound.ValueKind != JsonValueKind.Object ||
+            !outbound.TryGetProperty("protocol", out var proto)) return false;
+        var protocol = proto.GetString() ?? "";
+        return protocol is not ("" or "freedom" or "blackhole" or "dns" or "loopback");
     }
 
     private static void AddJsonOutbound(JsonElement outbound, List<ProxyProfile> output, JsonElement root)
     {
-        if (!outbound.TryGetProperty("protocol", out var proto)) return;
-        var protocol = proto.GetString() ?? "";
-        if (protocol is "freedom" or "blackhole" or "dns" or "loopback") return;
+        if (!IsProxyOutbound(outbound)) return;
+        var protocol = outbound.GetProperty("protocol").GetString() ?? "json";
         var raw = root.GetRawText();
-        output.Add(new ProxyProfile { Name = outbound.TryGetProperty("tag", out var tag) ? tag.GetString() ?? protocol : protocol,
-            Protocol = protocol, RawJson = raw, SourceUri = "json:" + raw });
+        output.Add(new ProxyProfile
+        {
+            Name = outbound.TryGetProperty("tag", out var tag) ? tag.GetString() ?? protocol : protocol,
+            Protocol = protocol,
+            RawJson = raw,
+            SourceUri = "json:" + raw
+        });
     }
 
     private static string DecodeSubscription(string text)
