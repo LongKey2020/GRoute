@@ -103,8 +103,8 @@
       <TextBlock Text="◎" FontSize="112" Foreground="#BFC8D0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
      </Grid>
     </Border>
-    <Border Background="#10271F" BorderBrush="#247A55" BorderThickness="1.5" CornerRadius="28" Padding="18,10" HorizontalAlignment="Center" Margin="0,0,0,24">
-     <TextBlock Text="● DISCONNECTED" Foreground="#56DCA6" FontSize="22" FontWeight="Medium"/>
+    <Border x:Name="ConnectionPillBorder" Background="#202020" BorderBrush="#666666" BorderThickness="1.5" CornerRadius="28" Padding="18,10" HorizontalAlignment="Center" Margin="0,0,0,24">
+     <TextBlock x:Name="ConnectionPillText" Text="● DISCONNECTED" Foreground="#BBBBBB" FontSize="22" FontWeight="Medium"/>
     </Border>
     <TextBlock Text="YOUR PROFILES" FontSize="13" Foreground="#AAAAAA" FontWeight="Bold" Margin="0,0,0,12"/>
     <Border Background="#111111" BorderBrush="#444444" BorderThickness="1" CornerRadius="16" Padding="12">
