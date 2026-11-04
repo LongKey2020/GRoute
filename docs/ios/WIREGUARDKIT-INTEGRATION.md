@@ -1,17 +1,18 @@
-# WireGuard Packet Tunnel Integration
+# WireGuardKit integration status
 
-The Packet Tunnel extension now consumes a WireGuard quick-config string from
-NETunnelProviderProtocol.providerConfiguration["wgQuickConfig"], parses the
-supported Interface/Peer directives, and starts/stops the official WireGuardAdapter.
+The app now imports a standard WireGuard .conf file using the system document picker,
+performs a basic front-end format check, and stores it in NETunnelProviderProtocol
+providerConfiguration for the Packet Tunnel extension. The extension performs strict
+directive parsing and starts/stops WireGuardAdapter.
 
-Supported directives:
-- Interface: PrivateKey, Address, DNS, ListenPort, MTU
-- Peer: PublicKey, PresharedKey, AllowedIPs, Endpoint, PersistentKeepalive
+The app uses NETunnelProviderManager to save the VPN configuration and request the
+system VPN authorization when the user initiates the connection.
 
-Unsupported desktop-only directives (including PostUp/PostDown, Table, SaveConfig)
-are rejected rather than silently ignored. Private and preshared keys are never logged.
-
-This commit integrates the engine lifecycle in the extension. A companion app-side
-profile import and NETunnelProviderManager setup is still required to populate
-providerConfiguration and request the user's VPN permission. A real-device handshake
-test is still required; simulator compilation is not a VPN connectivity test.
+Important:
+- The private key is included in the NetworkExtension provider configuration. Treat
+  the device and its VPN preferences as sensitive; never log or export this value.
+- iOS Network Extension entitlement and a matching provisioning profile are required
+  for a signed, installable device build.
+- Simulator CI success validates compilation only. Actual VPN connection, DNS, routing,
+  and handshake must be tested on a physical iPhone with a valid profile and entitlement.
+- Standard WireGuard .conf only. AmneziaWG-specific fields are not supported by this engine.
