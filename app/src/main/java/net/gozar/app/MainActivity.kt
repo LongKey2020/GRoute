@@ -178,7 +178,6 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingBag
 import android.Manifest
 import android.graphics.Bitmap
 import androidx.core.content.ContextCompat
@@ -475,12 +474,11 @@ private val AppAqua: Color
 
 internal val LocalLang = compositionLocalOf { Lang.EN }
 
-private const val PAGE_SHOP = 0
-private const val PAGE_SSH = 1
-private const val PAGE_HOME = 2
-private const val PAGE_DEBUG = 3
-private const val PAGE_SETTINGS = 4
-private const val PAGE_COUNT = 5
+private const val PAGE_SSH = 0
+private const val PAGE_HOME = 1
+private const val PAGE_DEBUG = 2
+private const val PAGE_SETTINGS = 3
+private const val PAGE_COUNT = 4
 
 @Composable
 private fun stringsFn(): (String) -> String {
@@ -1259,7 +1257,6 @@ private fun GozarApp(
     val subScreenOpen = (page == PAGE_SSH && sshSubScreen) || (page == PAGE_HOME && (showPicker || showManual || showProjects || showTorNodes || showWindscribe || showScanner || exportConfigs != null)) || (onSettingsTab && (usageDetail || perAppDetail || logsDetail || stabilityDetail || aboutDetail || cleanIpDetail || themeDetail || toolsDetail || connDetail || prefsDetail || netMonDetail || netCatDetail || netCatIndex >= 0 || checkHostDetail))
 
     val screenKey = when {
-        page == PAGE_SHOP -> "shop"
         page == PAGE_SSH -> "ssh"
         page == PAGE_HOME && exportConfigs != null -> "export"
         page == PAGE_HOME && showManual -> "manual"
@@ -1357,12 +1354,6 @@ private fun GozarApp(
                                 letterSpacing = 2.sp,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
-                            Text(
-                                "AMNEZIAWG CLIENT",
-                                style = MaterialTheme.typography.labelSmall,
-                                letterSpacing = 1.2.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
                     } else {
                         Text(
@@ -1447,12 +1438,6 @@ private fun GozarApp(
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    selected = page == PAGE_SHOP,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(PAGE_SHOP) } },
-                    icon = { Icon(Icons.Filled.ShoppingBag, contentDescription = null) },
-                    label = { Text(t("shop")) }
-                )
-                NavigationBarItem(
                     selected = page == PAGE_SSH,
                     onClick = { scope.launch { pagerState.animateScrollToPage(PAGE_SSH) } },
                     icon = { Icon(Icons.Filled.Terminal, contentDescription = null) },
@@ -1516,9 +1501,7 @@ private fun GozarApp(
                     alpha = contentAlpha
                 }
         ) { p ->
-            if (p == PAGE_SHOP) {
-                ShopScreen()
-            } else if (p == PAGE_SSH) {
+            if (p == PAGE_SSH) {
                 SshScreen(
                     store = SshStore.get(LocalContext.current),
                     onSubScreenChange = { sshSubScreen = it }
