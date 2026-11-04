@@ -51,13 +51,13 @@ public sealed class WireGuardEngine
             await Task.Delay(500, cancellationToken);
         }
         var serviceDiagnostics = await RunAsync("sc.exe", new[] { "queryex", serviceName }, cancellationToken);
-        var wireGuardLog = await RunAsync(executable, new[] { "/dumplog" }, cancellationToken);
+        var diagnosticPath = Path.Combine(ProgramDataDirectory, profile.TunnelName + ".diagnostics.txt");
+        var logText = File.Exists(diagnosticPath)
+            ? await File.ReadAllTextAsync(diagnosticPath, cancellationToken)
+            : "Elevated WireGuard diagnostic log was not created.";
         var serviceText = string.IsNullOrWhiteSpace(serviceDiagnostics.Output)
             ? $"sc.exe queryex exit code: {serviceDiagnostics.ExitCode}"
             : serviceDiagnostics.Output.Trim();
-        var logText = string.IsNullOrWhiteSpace(wireGuardLog.Output)
-            ? "WireGuard log output was empty."
-            : wireGuardLog.Output.Trim();
         if (logText.Length > 3500) logText = logText[^3500..];
         throw new InvalidOperationException(
             $"WireGuard tunnel service did not reach RUNNING within 10 seconds. " +
@@ -106,14 +106,16 @@ public sealed class WireGuardEngine
             "'*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' " +
             PsQuote("*" + userSid + ":(OI)(CI)M") + "; " +
             "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; " +
-            // WireGuard's tunnel service runs as LocalSystem and must be able
-            // to create/open Data\\log.bin under the WireGuard installation.
-            "$wgData = Join-Path (Split-Path -Parent " + PsQuote(wireGuardExe) + ") 'Data'; " +
-            "if (!(Test-Path -LiteralPath $wgData)) { New-Item -ItemType Directory -Path $wgData -Force | Out-Null }; " +
-            "& 'icacls.exe' $wgData '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '/T' '/C'; " +
-            "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; " +
             "& " + PsQuote(wireGuardExe) + " '/installtunnelservice' " +
-            PsQuote(configPath) + "; exit $LASTEXITCODE }";
+            PsQuote(configPath) + "; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; " +
+            // Wait for the tunnel to initialize, then dump its shared log while
+            // still elevated. Running /dumplog unelevated causes a misleading
+            // Access Denied because WireGuard protects its log under Program Files.
+            "Start-Sleep -Seconds 11; " +
+            "$diagPath = Join-Path " + PsQuote(dataDirectory) + " " + PsQuote(Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(configPath)) + ".diagnostics.txt") + "; " +
+            "$diag = & " + PsQuote(wireGuardExe) + " '/dumplog' 2>&1 | Out-String; " +
+            "Set-Content -LiteralPath $diagPath -Value $diag -Encoding UTF8; " +
+            "& 'icacls.exe' $diagPath '/grant:r' " + PsQuote("*" + userSid + ":(R)") + " | Out-Null; exit 0 }";
 
         var start = new ProcessStartInfo("powershell.exe")
         {
