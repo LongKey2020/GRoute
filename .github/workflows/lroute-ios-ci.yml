@@ -21,6 +21,10 @@ jobs:
         run: |
           xcodebuild -version
           go version
+      - name: Checkout WireGuardKit source
+        run: |
+          git clone --depth 1 https://git.zx2c4.com/wireguard-apple vendor/wireguard-apple
+          sed -i '' '1s/5.3/5.5/' vendor/wireguard-apple/Package.swift
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
@@ -31,10 +35,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          WG_DIR="$HOME/Library/Developer/Xcode/DerivedData/SourcePackages/checkouts/wireguard-apple/Sources/WireGuardKitGo"
-          if [ ! -d "$WG_DIR" ]; then
-            WG_DIR="$(find ~/Library/Developer/Xcode/DerivedData -path '*/SourcePackages/checkouts/wireguard-apple/Sources/WireGuardKitGo' -type d -print -quit)"
-          fi
+          WG_DIR="$GITHUB_WORKSPACE/vendor/wireguard-apple/Sources/WireGuardKitGo"
           test -d "$WG_DIR"
           make -C "$WG_DIR" \
             PLATFORM_NAME=iphoneos \

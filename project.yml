@@ -10,8 +10,7 @@ settings:
     TARGETED_DEVICE_FAMILY: "1,2"
 packages:
   WireGuardKit:
-    url: https://git.zx2c4.com/wireguard-apple
-    branch: master
+    path: vendor/wireguard-apple
 targets:
   LRoute:
     type: application
