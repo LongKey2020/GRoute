@@ -26,7 +26,10 @@ var cases = new[]
 {
     ("vless", "vless://11111111-1111-4111-8111-111111111111@example.com:443?type=tcp&security=tls&sni=example.com#vless-test"),
     ("vmess", vmessLink),
-    ("shadowsocks", "ss://" + Convert.ToBase64String(Encoding.UTF8.GetBytes("aes-128-gcm:test-password")) + "@example.com:8388#ss-test")
+    ("trojan", "trojan://test-password@example.com:443?security=tls&sni=example.com#trojan-test"),
+    ("shadowsocks", "ss://" + Convert.ToBase64String(Encoding.UTF8.GetBytes("aes-128-gcm:test-password")) + "@example.com:8388#ss-test"),
+    ("socks", "socks://test-user:test-password@example.com:1080#socks-test"),
+    ("http", "http://example.com:8080#http-test")
 };
 
 var temp = Path.Combine(Path.GetTempPath(), "LRoute-tests-" + Guid.NewGuid().ToString("N"));
