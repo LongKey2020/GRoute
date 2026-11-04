@@ -1,0 +1,38 @@
+name: LRoute
+options:
+  bundleIdPrefix: net.gozar
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+targets:
+  LRoute:
+    type: application
+    platform: iOS
+    sources:
+      - path: ios/App
+    dependencies:
+      - target: LRoutePacketTunnel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.gozar.lroute
+        PRODUCT_NAME: LRoute
+        INFOPLIST_FILE: ios/App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ios/App/LRoute.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+  LRoutePacketTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ios/PacketTunnel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.gozar.lroute.PacketTunnel
+        PRODUCT_NAME: LRoutePacketTunnel
+        INFOPLIST_FILE: ios/PacketTunnel/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ios/PacketTunnel/PacketTunnel.entitlements
+        APPLICATION_EXTENSION_API_ONLY: YES
+        GENERATE_INFOPLIST_FILE: NO

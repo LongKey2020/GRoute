@@ -1,0 +1,23 @@
+name: LRoute iOS CI
+on:
+  push:
+    branches: [lroute-ios]
+  pull_request:
+    branches: [lroute-ios]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  simulator-build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Xcode
+        run: xcodebuild -version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate --spec project.yml
+      - name: Build simulator app and tunnel extension
+        run: |
+          xcodebuild -project LRoute.xcodeproj -scheme LRoute -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
