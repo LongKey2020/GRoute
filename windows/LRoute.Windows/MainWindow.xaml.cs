@@ -44,23 +44,28 @@ public partial class MainWindow : Window
         var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "LRoute profiles (*.json;*.txt;*.conf)|*.json;*.txt;*.conf|All files (*.*)|*.*", Multiselect = true };
         if (dialog.ShowDialog(this) != true) return;
         var added = 0;
+        var importErrors = new List<string>();
         foreach (var file in dialog.FileNames)
         {
             try
             {
-                var text = await File.ReadAllTextAsync(file);
-                text = await FetchSubscriptionIfUrlAsync(text);
-                foreach (var profile in ProxyLinkParser.ParseMany(text))
+                var source = await File.ReadAllTextAsync(file);
+                source = await FetchSubscriptionIfUrlAsync(source);
+                var result = ProxyLinkParser.ParseManyDetailed(source);
+                foreach (var profile in result.Profiles)
                 {
                     _profiles.Add(profile with { Name = profile.Name == "New profile" ? Path.GetFileNameWithoutExtension(file) : profile.Name });
                     added++;
                 }
+                importErrors.AddRange(result.Errors.Select(error => $"{Path.GetFileName(file)}: {error}"));
             }
-            catch (Exception ex) { MessageBox.Show(this, $"{Path.GetFileName(file)}: {ex.Message}", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            catch (Exception ex) { importErrors.Add($"{Path.GetFileName(file)}: {ex.Message}"); }
         }
         Persist();
         RefreshUi();
-        if (added == 0) MessageBox.Show(this, "No supported Xray profiles were found. WireGuard and QR import are not included.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
+        if (importErrors.Count > 0) ShowImportErrors(importErrors);
+        if (added == 0 && importErrors.Count == 0)
+            MessageBox.Show(this, "No supported Xray profiles were found. WireGuard and QR import are not included.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void Manual_Click(object sender, RoutedEventArgs e)
@@ -79,10 +84,14 @@ public partial class MainWindow : Window
             try
             {
                 var source = await FetchSubscriptionIfUrlAsync(input.Text);
-                var parsed = ProxyLinkParser.ParseMany(source);
-                if (parsed.Count == 0) throw new FormatException("No supported VLESS, VMess, Trojan, Shadowsocks, SOCKS or HTTP profile was found.");
-                foreach (var profile in parsed) _profiles.Add(profile);
+                var result = ProxyLinkParser.ParseManyDetailed(source);
+                if (result.Profiles.Count == 0)
+                    throw new FormatException(result.Errors.Count > 0
+                        ? string.Join(Environment.NewLine, result.Errors)
+                        : "No supported VLESS, VMess, Trojan, Shadowsocks, SOCKS or HTTP profile was found.");
+                foreach (var profile in result.Profiles) _profiles.Add(profile);
                 Persist(); RefreshUi(); editor.Close();
+                if (result.Errors.Count > 0) ShowImportErrors(result.Errors);
             }
             catch (Exception ex) { MessageBox.Show(editor, ex.Message, "Invalid profile", MessageBoxButton.OK, MessageBoxImage.Warning); }
         };
@@ -127,6 +136,17 @@ public partial class MainWindow : Window
     private void Profiles_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Profiles"; PageSubtitle.Text = "Import and manage Xray-compatible profiles."; }
     private void Settings_Click(object sender, RoutedEventArgs e) { MessageBox.Show(this, "Settings modules are being rebuilt from the Android source.", "LRoute Settings"); }
     private void Menu_Click(object sender, RoutedEventArgs e) { MessageBox.Show(this, "LRoute Windows • WireGuard and QR scanning are excluded.", "About LRoute"); }
+
+    private void ShowImportErrors(IReadOnlyList<string> errors)
+    {
+        const int maxShown = 20;
+        var details = string.Join(Environment.NewLine, errors.Take(maxShown));
+        if (errors.Count > maxShown)
+            details += $"{Environment.NewLine}... and {errors.Count - maxShown} more error(s).";
+        MessageBox.Show(this,
+            $"Some entries could not be imported ({errors.Count}). Valid profiles were kept.{Environment.NewLine}{Environment.NewLine}{details}",
+            "Import completed with warnings", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
 
     private async Task<string> FetchSubscriptionIfUrlAsync(string value)
     {
