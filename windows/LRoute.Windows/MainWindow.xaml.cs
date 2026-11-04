@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _engine.ProcessExited += Engine_ProcessExited;
         try { _systemProxy.RecoverPreviousSession(); }
         catch (Exception ex)
         {
@@ -141,6 +142,22 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "Connection failed", MessageBoxButton.OK, MessageBoxImage.Error); }
         RefreshUi();
+    }
+
+    private void Engine_ProcessExited(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            try { _systemProxy.Restore(); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this,
+                    $"Xray stopped, but Windows proxy settings could not be restored. Check Windows Settings > Network & Internet > Proxy.\\n\\n{ex.Message}",
+                    "Proxy recovery required", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            _active = null;
+            RefreshUi();
+        }));
     }
 
     private void Remove_Click(object sender, RoutedEventArgs e)
