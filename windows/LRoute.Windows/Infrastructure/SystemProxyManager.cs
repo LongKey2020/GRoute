@@ -22,8 +22,8 @@ public sealed class SystemProxyManager
     private static readonly string[] ManagedValues =
         ["ProxyEnable", "ProxyServer", "ProxyOverride", "AutoConfigURL", "AutoDetect"];
 
-    private sealed record ValueSnapshot(bool Exists, string? Text, int? Number, int Kind);
-    private sealed record ProxySnapshot(Dictionary<string, ValueSnapshot> Values);
+    public sealed record ValueSnapshot(bool Exists, string? Text, int? Number, int Kind);
+    public sealed record ProxySnapshot(Dictionary<string, ValueSnapshot> Values);
 
     public bool IsActive => File.Exists(BackupPath);
 
@@ -43,13 +43,18 @@ public sealed class SystemProxyManager
             ?? throw new InvalidOperationException("Could not open the current user's Windows Internet Settings registry key.");
 
         var values = new Dictionary<string, ValueSnapshot>(StringComparer.Ordinal);
+        var existingNames = new HashSet<string>(key.GetValueNames(), StringComparer.OrdinalIgnoreCase);
         foreach (var name in ManagedValues)
         {
+            if (!existingNames.Contains(name))
+            {
+                values[name] = new ValueSnapshot(false, null, null, (int)RegistryValueKind.Unknown);
+                continue;
+            }
             var kind = key.GetValueKind(name);
             var raw = key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
             values[name] = raw switch
             {
-                null => new ValueSnapshot(false, null, null, (int)RegistryValueKind.Unknown),
                 int number => new ValueSnapshot(true, null, number, (int)kind),
                 string text => new ValueSnapshot(true, text, null, (int)kind),
                 _ => throw new InvalidOperationException($"Unsupported existing Windows proxy registry value type: {name}.")
