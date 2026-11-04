@@ -15,7 +15,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23.x"
+          go-version: "1.27.3"
           cache: false
       - name: Show Xcode and Go
         run: |
@@ -26,6 +26,14 @@ jobs:
           git clone --depth 1 https://git.zx2c4.com/wireguard-apple vendor/wireguard-apple
           sed -i '' '1s/5.3/5.5/' vendor/wireguard-apple/Package.swift
           python3 -c 'from pathlib import Path; p=Path("vendor/wireguard-apple/Sources/WireGuardKitC/WireGuardKitC.h"); s=p.read_text(); p.write_text("#include <sys/types.h>\\n"+s if "#include <sys/types.h>" not in s else s)'
+      - name: Checkout libXray source
+        run: |
+          git clone --depth 1 --branch v26.10.31 https://github.com/XTLS/libXray vendor/libXray
+      - name: Build libXray Apple XCFramework
+        working-directory: vendor/libXray
+        run: |
+          python3 build/main.py apple gomobile
+          test -d LibXray.xcframework
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
