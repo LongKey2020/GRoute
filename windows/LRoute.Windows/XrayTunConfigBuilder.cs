@@ -63,9 +63,9 @@ public static class XrayTunConfigBuilder
             ["name"] = "lroute0",
             ["desc"] = "LRoute",
             ["mtu"] = 1500,
-            ["gateway"] = new JsonArray("10.0.0.1/16"),
-            ["dns"] = new JsonArray("1.1.1.1", "8.8.8.8"),
-            ["autoSystemRoutingTable"] = new JsonArray("0.0.0.0/0"),
+            ["gateway"] = new JsonArray("10.0.0.1/16", "fc00::1/64"),
+            ["dns"] = new JsonArray("1.1.1.1", "8.8.8.8", "2606:4700:4700::1111", "2001:4860:4860::8888"),
+            ["autoSystemRoutingTable"] = new JsonArray("0.0.0.0/0", "::/0"),
             ["autoOutboundsInterface"] = "auto",
             ["autoSystemWfpBlockLeak"] = new JsonArray("dns", "misconfigtun")
         };
