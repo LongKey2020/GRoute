@@ -434,18 +434,18 @@ private val GnetAmoledColors = darkColorScheme(
     secondaryContainer = Color(0xFF1A1A1A),
     onSecondaryContainer = Color(0xFFE5E5E5),
     background = Color(0xFF000000),
-    onBackground = Color(0xFFE6EAF2),
+    onBackground = Color(0xFFFFFFFF),
     surface = Color(0xFF000000),
-    onSurface = Color(0xFFE6EAF2),
-    surfaceVariant = Color(0xFF12161F),
-    onSurfaceVariant = Color(0xFFA2B0C8),
-    surfaceBright = Color(0xFF1A1F2A),
+    onSurface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFF171717),
+    onSurfaceVariant = Color(0xFFBDBDBD),
+    surfaceBright = Color(0xFF242424),
     surfaceDim = Color(0xFF000000),
     surfaceContainerLowest = Color(0xFF000000),
-    surfaceContainerLow = Color(0xFF07090D),
-    surfaceContainer = Color(0xFF0B0E14),
-    surfaceContainerHigh = Color(0xFF0F131B),
-    surfaceContainerHighest = Color(0xFF12161F),
+    surfaceContainerLow = Color(0xFF0A0A0A),
+    surfaceContainer = Color(0xFF171717),
+    surfaceContainerHigh = Color(0xFF1D1D1D),
+    surfaceContainerHighest = Color(0xFF242424),
     tertiary = Color(0xFFE5E5E5),
     onTertiary = Color(0xFF000000),
     tertiaryContainer = Color(0xFF242424),
@@ -1335,8 +1335,8 @@ private fun GozarApp(
     val gradDark = gradBg.luminance() < 0.5f
     val gradient = remember(gradBg, gradDark) {
         if (gradDark) Brush.verticalGradient(
-            0f to lerp(gradBg, Color(0xFF6D9BEE), 0.12f),
-            0.45f to lerp(gradBg, Color(0xFF6D9BEE), 0.05f),
+            0f to lerp(gradBg, Color(0xFF242424), 0.08f),
+            0.45f to lerp(gradBg, Color(0xFF242424), 0.03f),
             1f to gradBg
         ) else SolidColor(gradBg)
     }
@@ -1349,17 +1349,19 @@ private fun GozarApp(
             CenterAlignedTopAppBar(
                 title = {
                     if (screenKey == "connection") {
-                        val logoRes = if (effectiveDark) R.drawable.logo else R.drawable.logo_black
-                        Box {
-                            Image(
-                                painter = painterResource(logoRes),
-                                contentDescription = null,
-                                modifier = Modifier.height(34.dp)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "LROUTE",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Light,
+                                letterSpacing = 2.sp,
+                                color = MaterialTheme.colorScheme.onBackground
                             )
-                            Image(
-                                painter = painterResource(logoRes),
-                                contentDescription = t("app_title"),
-                                modifier = Modifier.height(34.dp)
+                            Text(
+                                "AMNEZIAWG CLIENT",
+                                style = MaterialTheme.typography.labelSmall,
+                                letterSpacing = 1.2.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     } else {
@@ -1932,8 +1934,8 @@ private fun ConnectionScreen(
                     val stateTint by animateColorAsState(
                         when {
                             netOffline || deadTunnel -> Color(0xFFE0413C)
-                            conn == Connection.CONNECTING -> Color(0xFFFFA94D)
-                            connected -> AppGreen
+                            conn == Connection.CONNECTING -> Color(0xFFBDBDBD)
+                            connected -> Color(0xFFFFFFFF)
                             else -> MaterialTheme.colorScheme.primary
                         },
                         tween(450),
@@ -2047,14 +2049,14 @@ private fun ConnectionScreen(
                             speed = downSpeed,
                             total = totalDown,
                             icon = Icons.Filled.ArrowDownward,
-                            color = Color(0xFF35E0FF),
+                            color = Color(0xFFBDBDBD),
                             modifier = Modifier.weight(1f)
                         )
                         StatBox(
                             speed = upSpeed,
                             total = totalUp,
                             icon = Icons.Filled.ArrowUpward,
-                            color = Color(0xFFFF4DD8),
+                            color = Color(0xFFFFFFFF),
                             modifier = Modifier.weight(1f)
                         )
                         BounceOutlinedButton(
