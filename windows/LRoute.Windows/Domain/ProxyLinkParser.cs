@@ -87,7 +87,7 @@ public static class ProxyLinkParser
             Name = Uri.UnescapeDataString(uri.Fragment.TrimStart('#')) is { Length: > 0 } n ? n : $"{uri.Host}:{uri.Port}",
             Protocol = protocol, Server = uri.Host, Port = uri.Port, UserId = id, Password = password,
             Network = q["type"] ?? q["network"] ?? "tcp",
-            Security = q["security"] ?? (q["sni"] is null ? "none" : "tls"),
+            Security = NormalizeSecurity(q["security"] ?? (q["sni"] is null ? "none" : "tls")),
             Sni = q["sni"] ?? q["serverName"] ?? "",
             Host = q["host"] ?? q["authority"] ?? "",
             Path = q["path"] ?? "",
