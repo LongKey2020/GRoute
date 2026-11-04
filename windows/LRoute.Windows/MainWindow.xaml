@@ -19,8 +19,8 @@
     <StackPanel DockPanel.Dock="Bottom">
      <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,14"/>
      <TextBlock Text="ENGINE STATUS" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold"/>
-     <TextBlock Text="Not connected" Margin="0,7,0,0" FontSize="13"/>
-     <TextBlock Text="VPN engine integration pending" Foreground="{StaticResource MutedBrush}" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"/>
+     <TextBlock x:Name="EngineStatus" Text="WireGuard engine not installed" Margin="0,7,0,0" FontSize="13"/>
+     <TextBlock Text="Native tunnel service" Foreground="{StaticResource MutedBrush}" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"/>
      <TextBlock Text="LRoute • Windows x64" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,24,0,0"/>
     </StackPanel>
    </DockPanel>
@@ -34,7 +34,7 @@
      <TextBlock Text="Manage VPN profiles and connection settings." Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0"/>
     </StackPanel>
     <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#171717" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="18" Padding="12,7">
-     <TextBlock Text="●  DISCONNECTED" FontSize="10" FontWeight="Bold"/>
+     <TextBlock x:Name="ConnectionStatus" Text="●  DISCONNECTED" FontSize="10" FontWeight="Bold"/>
     </Border>
    </Grid>
    <Border Grid.Row="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="24" Margin="0,28,0,22">
@@ -42,10 +42,10 @@
      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
      <StackPanel VerticalAlignment="Center">
       <TextBlock Text="CONNECTION" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold"/>
-      <TextBlock Text="Ready when you are." FontSize="22" FontWeight="SemiBold" Margin="0,9,0,4"/>
-      <TextBlock Text="Import a profile to begin. VPN engine support is being integrated." Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+      <TextBlock x:Name="ConnectionMessage" Text="Select a WireGuard profile to connect." FontSize="22" FontWeight="SemiBold" Margin="0,9,0,4"/>
+      <TextBlock Text="WireGuard tunnel service • Windows administrator approval required" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
      </StackPanel>
-     <Button Grid.Column="1" Content="CONNECT" IsEnabled="False" Width="142" Height="44" Background="#FFFFFF" Foreground="#080808" BorderThickness="0" FontWeight="Bold" VerticalAlignment="Center"/>
+     <Button x:Name="ConnectButton" Grid.Column="1" Content="CONNECT" IsEnabled="False" Click="ConnectButton_Click" Width="142" Height="44" Background="#FFFFFF" Foreground="#080808" BorderThickness="0" FontWeight="Bold" VerticalAlignment="Center"/>
     </Grid>
    </Border>
    <Grid Grid.Row="2">
@@ -66,7 +66,7 @@
        <TextBlock Text="Import a .conf or supported configuration file." Foreground="{StaticResource MutedBrush}" FontSize="12" HorizontalAlignment="Center"/>
        <Button Content="IMPORT CONFIGURATION" Click="ImportButton_Click" Margin="0,18,0,0" Padding="18,10" Background="#FFFFFF" Foreground="#080808" BorderThickness="0" FontWeight="Bold"/>
       </StackPanel>
-      <ListView x:Name="ProfilesList" Visibility="Collapsed" Background="Transparent" BorderThickness="0" Foreground="White">
+      <ListView x:Name="ProfilesList" SelectionChanged="ProfilesList_SelectionChanged" Visibility="Collapsed" Background="Transparent" BorderThickness="0" Foreground="White">
        <ListView.ItemTemplate>
         <DataTemplate>
          <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10">

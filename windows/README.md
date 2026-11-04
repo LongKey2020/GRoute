@@ -5,17 +5,18 @@ Windows desktop implementation of LRoute. This project is isolated under `window
 ## Stack
 - C# / WPF
 - .NET 8 (Windows x64)
-- Dark monochrome UI
+- Dark monochrome desktop UI
 
-## Current status
-- Desktop application shell and profile import UI are scaffolded.
-- Import currently indexes selected file names in the current session; it does not yet store credentials or activate a VPN.
-- Connect is intentionally disabled until the native tunnel engines and service lifecycle are integrated.
+## Current implementation
+- Responsive dashboard and profile list.
+- Imports and persists profile metadata.
+- WireGuard adapter uses the official WireGuard for Windows tunnel-service CLI.
+- Connect/disconnect requests UAC elevation and verifies the Windows tunnel service state.
+- Imported WireGuard configurations are DPAPI-protected with machine scope before being handed to the WireGuard service.
+- Xray and AmneziaWG profiles are listed but intentionally not connectable until their Windows-native engine adapters are integrated.
 
-## Planned engine adapters
-1. WireGuard: official WireGuard for Windows / WireGuardNT service integration.
-2. AmneziaWG: Windows-compatible AmneziaWG engine, subject to verified upstream packaging and API.
-3. Xray: Xray-core process integration for VLESS, VMess, Trojan and Shadowsocks.
+## WireGuard prerequisite
+Install the official WireGuard for Windows client from https://www.wireguard.com/install/. LRoute locates `wireguard.exe` in the standard Program Files locations. Connecting installs a dedicated Windows tunnel service named `WireGuardTunnel$LRoute-...`; disconnecting uninstalls that service. The operation requires administrator approval.
 
 ## Build
 Open `LRoute.Windows.sln` in Visual Studio 2022 with the .NET desktop development workload, or run:
@@ -24,4 +25,4 @@ Open `LRoute.Windows.sln` in Visual Studio 2022 with the .NET desktop developmen
 dotnet build .\LRoute.Windows.sln -c Release
 ```
 
-VPN engine integration will require an elevated service/driver installation path. The UI must never claim connected until the underlying engine confirms the tunnel state.
+The application must not display Connected unless the WireGuard tunnel service reports the Running state.
