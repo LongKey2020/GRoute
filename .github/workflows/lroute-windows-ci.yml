@@ -45,6 +45,8 @@ jobs:
           if (!(Test-Path "$destination/xray/xray.exe")) { throw "xray.exe was not found in the official release archive." }
           if (!(Test-Path "$destination/xray/wintun.dll")) { throw "wintun.dll was not found; Windows TUN mode cannot run." }
           & "$destination/xray/xray.exe" version
+      - name: Run parser and Xray configuration tests
+        run: dotnet run --project windows/LRoute.Windows.Tests/LRoute.Windows.Tests.csproj -c Release -- "artifacts/LRoute-win-x64/xray/xray.exe"
       - name: Upload Windows x64 artifact
         uses: actions/upload-artifact@v4
         with:
