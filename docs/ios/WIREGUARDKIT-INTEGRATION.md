@@ -1,30 +1,17 @@
-# WireGuardKit Integration Notes
+# WireGuard Packet Tunnel Integration
 
-## Engine selection
+The Packet Tunnel extension now consumes a WireGuard quick-config string from
+NETunnelProviderProtocol.providerConfiguration["wgQuickConfig"], parses the
+supported Interface/Peer directives, and starts/stops the official WireGuardAdapter.
 
-LRoute uses the official WireGuard for Apple implementation:
-- Swift package: https://git.zx2c4.com/wireguard-apple
-- Swift product: `WireGuardKit`
-- Native backend: `wireguard-go`, built as `libwg-go.a`
+Supported directives:
+- Interface: PrivateKey, Address, DNS, ListenPort, MTU
+- Peer: PublicKey, PresharedKey, AllowedIPs, Endpoint, PersistentKeepalive
 
-## Build pipeline
+Unsupported desktop-only directives (including PostUp/PostDown, Table, SaveConfig)
+are rejected rather than silently ignored. Private and preshared keys are never logged.
 
-The iOS CI workflow:
-1. Generates the Xcode project with XcodeGen.
-2. Resolves the WireGuardKit Swift package.
-3. Builds the Go backend for the iOS Simulator arm64 SDK.
-4. Links `libwg-go.a` into the app and Packet Tunnel extension targets.
-
-This is an integration build step, not proof of a working VPN connection. The Packet Tunnel provider still needs configuration parsing, WireGuardAdapter lifecycle integration, and real-device validation.
-
-## Next implementation gate
-
-- Parse a WireGuard `.conf` safely; reject malformed or incomplete keys, addresses, and endpoints.
-- Persist profile material only in the app's protected container / Keychain; do not log private keys.
-- Pass the selected profile to the Packet Tunnel extension through provider configuration.
-- Start and stop `WireGuardAdapter` from `NEPacketTunnelProvider`.
-- Verify handshake, DNS, IPv4/IPv6 routing, reconnect, and leak behavior on a physical iPhone.
-
-## Licensing
-
-WireGuardKit is MIT-licensed. Preserve its license and notices when distributing derived binaries or source.
+This commit integrates the engine lifecycle in the extension. A companion app-side
+profile import and NETunnelProviderManager setup is still required to populate
+providerConfiguration and request the user's VPN permission. A real-device handshake
+test is still required; simulator compilation is not a VPN connectivity test.
