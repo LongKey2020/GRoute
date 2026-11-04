@@ -220,12 +220,20 @@ public partial class MainWindow : Window
         {
             EngineStatus.Text = "WireGuard tunnel service: RUNNING";
             ConnectionStatus.Text = "●  CONNECTED";
+            ConnectionPillText.Text = "● CONNECTED";
+            ConnectionPillText.Foreground = System.Windows.Media.Brushes.LightGreen;
+            ConnectionPillBorder.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 39, 31));
+            ConnectionPillBorder.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(36, 122, 85));
             ConnectionMessage.Text = $"WireGuard connected • {_activeWireGuardProfile.Name}";
         }
         else if (_xray.IsRunning)
         {
             EngineStatus.Text = "Xray-core process running";
             ConnectionStatus.Text = "●  ENGINE RUNNING";
+            ConnectionPillText.Text = "● ENGINE RUNNING";
+            ConnectionPillText.Foreground = System.Windows.Media.Brushes.White;
+            ConnectionPillBorder.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(35, 35, 35));
+            ConnectionPillBorder.BorderBrush = System.Windows.Media.Brushes.Gray;
             ConnectionMessage.Text = $"Xray-core running • {_activeProfile?.Name} (local proxy mode)";
         }
         else
@@ -234,6 +242,10 @@ public partial class MainWindow : Window
                 ? "Xray-core ready"
                 : "Xray-core runtime missing";
             ConnectionStatus.Text = "●  DISCONNECTED";
+            ConnectionPillText.Text = "● DISCONNECTED";
+            ConnectionPillText.Foreground = System.Windows.Media.Brushes.LightGray;
+            ConnectionPillBorder.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(32, 32, 32));
+            ConnectionPillBorder.BorderBrush = System.Windows.Media.Brushes.Gray;
             ConnectionMessage.Text = "Select a supported profile to start a connection.";
         }
         UpdateSelectedProfileState();
