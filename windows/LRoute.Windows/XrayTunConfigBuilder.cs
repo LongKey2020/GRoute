@@ -104,7 +104,27 @@ public static class XrayTunConfigBuilder
 
         if (!hasDefaultTunRoute)
         {
-            rules.Add(new JsonObject
+            var fallbackIndex = rules.Count;
+            for (var i = 0; i < rules.Count; i++)
+            {
+                if (rules[i] is not JsonObject rule || rule["outboundTag"] is null ||
+                    rule["inboundTag"] is JsonArray)
+                    continue;
+
+                var hasMatchCondition = new[]
+                {
+                    "domain", "ip", "port", "source", "sourcePort",
+                    "network", "protocol", "user", "attrs"
+                }.Any(key => rule[key] is not null);
+
+                if (!hasMatchCondition)
+                {
+                    fallbackIndex = i;
+                    break;
+                }
+            }
+
+            rules.Insert(fallbackIndex, new JsonObject
             {
                 ["type"] = "field",
                 ["inboundTag"] = new JsonArray(tunTag),
