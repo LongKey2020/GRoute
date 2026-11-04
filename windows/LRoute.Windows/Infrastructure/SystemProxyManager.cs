@@ -14,7 +14,7 @@ namespace LRoute.Windows.Infrastructure;
 /// </summary>
 public sealed class SystemProxyManager
 {
-    private const string InternetSettingsPath = @"Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings";
+    private const string InternetSettingsPath = @"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
     private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("LRoute.SystemProxy.v1");
     private static readonly string BackupPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
