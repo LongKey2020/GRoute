@@ -106,6 +106,12 @@ public sealed class WireGuardEngine
             "'*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' " +
             PsQuote("*" + userSid + ":(OI)(CI)M") + "; " +
             "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; " +
+            // WireGuard's tunnel service runs as LocalSystem and must be able
+            // to create/open Data\\log.bin under the WireGuard installation.
+            "$wgData = Join-Path (Split-Path -Parent " + PsQuote(wireGuardExe) + ") 'Data'; " +
+            "if (!(Test-Path -LiteralPath $wgData)) { New-Item -ItemType Directory -Path $wgData -Force | Out-Null }; " +
+            "& 'icacls.exe' $wgData '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '/T' '/C'; " +
+            "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; " +
             "& " + PsQuote(wireGuardExe) + " '/installtunnelservice' " +
             PsQuote(configPath) + "; exit $LASTEXITCODE }";
 
