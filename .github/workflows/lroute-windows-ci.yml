@@ -1,0 +1,26 @@
+name: LRoute Windows CI
+on:
+  push:
+    branches: [lroute-windows]
+    paths:
+      - "windows/**"
+      - ".github/workflows/lroute-windows-ci.yml"
+  pull_request:
+    branches: [lroute-windows]
+    paths:
+      - "windows/**"
+      - ".github/workflows/lroute-windows-ci.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build Windows application
+        run: dotnet build windows/LRoute.Windows.sln -c Release

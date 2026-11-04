@@ -1,0 +1,16 @@
+<Application x:Class="LRoute.Windows.App"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ StartupUri="MainWindow.xaml">
+ <Application.Resources>
+  <Color x:Key="BackgroundColor">#080808</Color>
+  <Color x:Key="PanelColor">#141414</Color>
+  <Color x:Key="BorderColor">#292929</Color>
+  <Color x:Key="MutedColor">#929292</Color>
+  <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}"/>
+  <SolidColorBrush x:Key="PanelBrush" Color="{StaticResource PanelColor}"/>
+  <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}"/>
+  <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource MutedColor}"/>
+  <SolidColorBrush x:Key="ForegroundBrush" Color="#FFFFFF"/>
+ </Application.Resources>
+</Application>
