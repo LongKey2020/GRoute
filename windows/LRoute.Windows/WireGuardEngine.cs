@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace LRoute.Windows;
 
@@ -35,7 +36,8 @@ public sealed class WireGuardEngine
         Directory.CreateDirectory(ProgramDataDirectory);
         var configPath = Path.Combine(ProgramDataDirectory, profile.TunnelName + ".conf.dpapi");
         var plainConfig = await File.ReadAllBytesAsync(profile.FilePath, cancellationToken);
-        var encryptedConfig = ProtectedData.Protect(plainConfig, null, DataProtectionScope.LocalMachine);
+        var entropy = Encoding.UTF8.GetBytes(profile.TunnelName);
+        var encryptedConfig = ProtectedData.Protect(plainConfig, entropy, DataProtectionScope.LocalMachine);
         await File.WriteAllBytesAsync(configPath, encryptedConfig, cancellationToken);
 
         await RunElevatedAsync("icacls.exe", new[]
