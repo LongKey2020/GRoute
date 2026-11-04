@@ -13,6 +13,7 @@ public partial class MainWindow : Window
     private readonly ProfileStore _store = new();
     private readonly ObservableCollection<ProxyProfile> _profiles = [];
     private readonly XrayEngine _engine = new();
+    private readonly SystemProxyManager _systemProxy = new();
     private readonly SubscriptionFetcher _subscriptions = new();
     private ProxyProfile? _active;
     private bool _storeReady = true;
@@ -23,6 +24,13 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        try { _systemProxy.RecoverPreviousSession(); }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                $"LRoute could not restore the previous Windows proxy settings. Check Windows Settings > Network & Internet > Proxy before connecting again.\\n\\n{ex.Message}",
+                "Proxy recovery required", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
         ProfilesList.ItemsSource = _profiles;
         try
         {
@@ -102,7 +110,12 @@ public partial class MainWindow : Window
     {
         if (_engine.IsRunning)
         {
-            try { await _engine.DisconnectAsync(); _active = null; }
+            try
+            {
+                await _engine.DisconnectAsync();
+                _systemProxy.Restore();
+                _active = null;
+            }
             catch (Exception ex) { MessageBox.Show(this, ex.Message, "Disconnect failed", MessageBoxButton.OK, MessageBoxImage.Error); }
             RefreshUi(); return;
         }
@@ -118,6 +131,12 @@ public partial class MainWindow : Window
             var path = Path.Combine(RuntimeDirectory, $"profile-{profile.Id}.json");
             await File.WriteAllTextAsync(path, config);
             await _engine.ConnectAsync(path, false);
+            try { _systemProxy.Activate(); }
+            catch
+            {
+                await _engine.DisconnectAsync();
+                throw;
+            }
             _active = profile;
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "Connection failed", MessageBoxButton.OK, MessageBoxImage.Error); }
@@ -172,7 +191,7 @@ public partial class MainWindow : Window
     {
         ProfileCount.Text = $"{_profiles.Count} saved profile{(_profiles.Count == 1 ? "" : "s")}";
         var running = _engine.IsRunning;
-        StatusText.Text = running ? "Engine running" : "Disconnected";
+        StatusText.Text = running ? "System proxy active" : "Disconnected";
         StatusDot.Fill = running ? new SolidColorBrush(Color.FromRgb(65,190,125)) : new SolidColorBrush(Color.FromRgb(119,127,137));
         EngineState.Text = running ? "Running" : "Stopped";
         ConnectButton.Content = running ? "Disconnect" : "Connect";
@@ -188,7 +207,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_engine.IsRunning)
+        if (_engine.IsRunning || _systemProxy.IsActive)
         {
             e.Cancel = true;
             if (_closingInProgress) return;
@@ -196,7 +215,8 @@ public partial class MainWindow : Window
             IsEnabled = false;
             try
             {
-                await _engine.DisconnectAsync();
+                if (_engine.IsRunning) await _engine.DisconnectAsync();
+                _systemProxy.Restore();
                 _allowClose = true;
                 Close();
             }
