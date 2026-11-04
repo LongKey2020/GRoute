@@ -90,7 +90,8 @@ public static class ProxyLinkParser
         {
             Name = Uri.UnescapeDataString(original.Split('#').LastOrDefault() ?? "") is { Length: > 0 } n ? n : Get("ps", Get("add")),
             Protocol = "vmess", Server = Get("add"), Port = int.TryParse(Get("port"), out var p) ? p : 0,
-            UserId = Get("id"), Method = Get("scy", "auto"), Network = Get("net", "tcp"),
+            UserId = Get("id"), AlterId = int.TryParse(Get("aid", "0"), out var alterId) ? alterId : 0,
+            Method = Get("scy", "auto"), Network = Get("net", "tcp"),
             Security = NormalizeSecurity(Get("tls", "none")), Sni = Get("sni"), Host = Get("host"), Path = Get("path"),
             SourceUri = original
         };
