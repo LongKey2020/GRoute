@@ -1591,6 +1591,13 @@ private fun GozarApp(
                             store = store,
                             selectedId = selectedId,
                             onOpenPicker = { showPicker = true },
+                            onManualConfig = { showManual = true },
+                            onScanQr = { showScanner = true },
+                            onImportConfig = { showPicker = true },
+                            onOpenConnectionSettings = {
+                                connDetail = true
+                                scope.launch { pagerState.animateScrollToPage(PAGE_SETTINGS) }
+                            },
                             onConnect = onConnect,
                             onDisconnect = onDisconnect,
                             onCancelPick = onCancelPick
@@ -1693,6 +1700,10 @@ private fun ConnectionScreen(
     store: ConfigStore,
     selectedId: String?,
     onOpenPicker: () -> Unit,
+    onManualConfig: () -> Unit,
+    onScanQr: () -> Unit,
+    onImportConfig: () -> Unit,
+    onOpenConnectionSettings: () -> Unit,
     onConnect: (ProxyConfig) -> Unit,
     onDisconnect: () -> Unit,
     onCancelPick: () -> Unit = {},
@@ -1906,6 +1917,37 @@ private fun ConnectionScreen(
                             )
                         }
                     }
+                }
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    BounceOutlinedButton(
+                        onClick = onOpenConnectionSettings,
+                        minHeight = 46.dp,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("VPN SETTINGS  ·  DNS / SPLIT TUNNEL", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    BounceOutlinedButton(
+                        onClick = onManualConfig,
+                        minHeight = 46.dp,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) { Text("MANUAL CONFIG", maxLines = 1) }
+                    BounceOutlinedButton(
+                        onClick = onScanQr,
+                        minHeight = 46.dp,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) { Text("SCAN QR", maxLines = 1) }
                 }
 
                 var btnPressed by remember { mutableStateOf(false) }
