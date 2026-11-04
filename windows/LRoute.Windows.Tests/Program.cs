@@ -69,7 +69,7 @@ try
         Console.WriteLine("PASS: " + expectedProtocol + " parse + config validation");
     }
 
-    var jsonOutbound = """{"protocol":"freedom","tag":"direct-test","settings":{}}""";
+    var jsonOutbound = """{"protocol":"vless","tag":"proxy","settings":{"vnext":[{"address":"example.com","port":443,"users":[{"id":"11111111-1111-4111-8111-111111111111","encryption":"none"}]}]}}""";
     var wrapped = ProxyLinkParser.ParseMany(jsonOutbound);
     Assert(wrapped.Count == 1 && wrapped[0].Protocol == "json",
         "Standalone Xray outbound should be wrapped as a complete config.");
