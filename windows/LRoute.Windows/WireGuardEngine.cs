@@ -1,14 +1,12 @@
 using System.Diagnostics;
 using System.IO;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace LRoute.Windows;
 
 public sealed class WireGuardEngine
 {
     private static readonly string ProgramDataDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "LRoute", "WireGuard");
 
     public string? FindExecutable()
@@ -34,11 +32,13 @@ public sealed class WireGuardEngine
             throw new InvalidOperationException("The profile has no tunnel identifier. Remove and re-import this profile.");
 
         Directory.CreateDirectory(ProgramDataDirectory);
-        var configPath = Path.Combine(ProgramDataDirectory, profile.TunnelName + ".conf.dpapi");
+        var configPath = Path.Combine(ProgramDataDirectory, profile.TunnelName + ".conf");
         var plainConfig = await File.ReadAllBytesAsync(profile.FilePath, cancellationToken);
-        var entropy = Encoding.UTF8.GetBytes(profile.TunnelName);
-        var encryptedConfig = ProtectedData.Protect(plainConfig, entropy, DataProtectionScope.LocalMachine);
-        await File.WriteAllBytesAsync(configPath, encryptedConfig, cancellationToken);
+        // WireGuard for Windows accepts a normal .conf file directly. Do not
+        // hand-roll .conf.dpapi: its DPAPI description and execution identity
+        // must match WireGuard's own implementation. Keep plaintext under the
+        // current user's LocalAppData ACL, which also grants SYSTEM read access.
+        await File.WriteAllBytesAsync(configPath, plainConfig, cancellationToken);
 
         await RunElevatedWireGuardInstallAsync(
             executable, configPath, ProgramDataDirectory,
@@ -73,7 +73,7 @@ public sealed class WireGuardEngine
         if (!await ServiceExistsAsync(serviceName, cancellationToken)) return;
 
         await RunElevatedAsync(executable, new[] { "/uninstalltunnelservice", profile.TunnelName }, cancellationToken);
-        var configPath = Path.Combine(ProgramDataDirectory, profile.TunnelName + ".conf.dpapi");
+        var configPath = Path.Combine(ProgramDataDirectory, profile.TunnelName + ".conf");
         try { if (File.Exists(configPath)) File.Delete(configPath); } catch { }
     }
 
