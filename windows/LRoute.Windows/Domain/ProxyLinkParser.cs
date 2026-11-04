@@ -74,7 +74,9 @@ public static class ProxyLinkParser
         var password = "";
         if (scheme is "vless" or "vmess")
             id = user;
-        else if (scheme is "trojan" or "socks" or "socks5" or "http")
+        else if (scheme == "trojan")
+            password = user;
+        else if (scheme is "socks" or "socks5" or "http")
         {
             var split = user.Split(':', 2);
             id = split[0];
