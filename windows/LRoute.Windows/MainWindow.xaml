@@ -27,8 +27,8 @@
     <StackPanel DockPanel.Dock="Bottom">
      <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,14"/>
      <TextBlock Text="ENGINE STATUS" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold"/>
-     <TextBlock x:Name="EngineStatus" Text="WireGuard temporarily disabled" Margin="0,7,0,0" FontSize="13"/>
-     <TextBlock Text="VPN engine integration in progress" Foreground="{StaticResource MutedBrush}" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"/>
+     <TextBlock x:Name="EngineStatus" Text="Xray-core runtime initializing" Margin="0,7,0,0" FontSize="13"/>
+     <TextBlock Text="Xray-core • VLESS / VMess / Trojan / Shadowsocks JSON" Foreground="{StaticResource MutedBrush}" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"/>
      <TextBlock Text="LRoute • Windows x64" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,24,0,0"/>
     </StackPanel>
    </DockPanel>
@@ -50,8 +50,8 @@
      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
      <StackPanel VerticalAlignment="Center">
       <TextBlock Text="CONNECTION" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold"/>
-      <TextBlock x:Name="ConnectionMessage" Text="WireGuard support is temporarily paused." FontSize="22" FontWeight="SemiBold" Margin="0,9,0,4"/>
-      <TextBlock Text="WireGuard support is temporarily paused" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+      <TextBlock x:Name="ConnectionMessage" Text="Select an Xray JSON profile to start the engine." FontSize="22" FontWeight="SemiBold" Margin="0,9,0,4"/>
+      <TextBlock Text="Xray-core local proxy engine • no system-wide TUN yet" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
      </StackPanel>
      <Button x:Name="ConnectButton" Grid.Column="1" Content="CONNECT" IsEnabled="False" Click="ConnectButton_Click" Width="142" Height="44" Background="#FFFFFF" Foreground="#080808" BorderThickness="0" FontWeight="Bold" VerticalAlignment="Center"/>
     </Grid>
