@@ -72,11 +72,7 @@
      <TextBlock x:Name="ConnectionMessage" Text="Select a profile to get started." Foreground="#AAAAAA" FontSize="13" TextWrapping="Wrap" TextAlignment="Center" Margin="0,7,0,3"/>
      <TextBlock x:Name="EngineStatus" Text="Xray-core runtime status: checking" Foreground="#777777" FontSize="12" HorizontalAlignment="Center"/>
     </StackPanel>
-    <Grid Margin="0,0,0,26">
-     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-     <Button Grid.Column="0" Content="MANUAL CONFIG" Style="{StaticResource OutlineAction}" Click="ManualConfigButton_Click" Margin="0,0,9,0"/>
-     <Button Grid.Column="1" Content="SCAN QR" Style="{StaticResource OutlineAction}" Click="ScanQrButton_Click" Margin="9,0,0,0"/>
-    </Grid>
+    <Button Content="MANUAL CONFIG" Style="{StaticResource OutlineAction}" Click="ManualConfigButton_Click" Margin="0,0,0,26"/>
     <Button x:Name="ImportButton" Content="IMPORT CONFIG FILE" Style="{StaticResource OutlineAction}" Click="ImportButton_Click" Margin="0,0,0,26"/>
     <Button x:Name="ConnectButton" Content="CONNECT" IsEnabled="False" Click="ConnectButton_Click"
      Height="100" Background="#343434" Foreground="White" BorderBrush="#AAAAAA" BorderThickness="2"
