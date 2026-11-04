@@ -15,13 +15,25 @@ public partial class MainWindow : Window
     private readonly XrayEngine _engine = new();
     private readonly SubscriptionFetcher _subscriptions = new();
     private ProxyProfile? _active;
+    private bool _storeReady = true;
     private string RuntimeDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LRoute", "Runtime");
 
     public MainWindow()
     {
         InitializeComponent();
         ProfilesList.ItemsSource = _profiles;
-        foreach (var profile in _store.Load()) _profiles.Add(profile);
+        try
+        {
+            foreach (var profile in _store.Load()) _profiles.Add(profile);
+        }
+        catch (Exception ex)
+        {
+            // Never overwrite a profile vault that could not be decrypted or parsed.
+            _storeReady = false;
+            MessageBox.Show(this,
+                $"LRoute could not read the saved profile vault. The original file has been left untouched.\\n\\n{ex.Message}\\n\\nExport or back up the vault before attempting recovery.",
+                "Profile storage unavailable", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
         RefreshUi();
     }
 
@@ -123,7 +135,12 @@ public partial class MainWindow : Window
         return value;
     }
 
-    private void Persist() => _store.Save(_profiles);
+    private void Persist()
+    {
+        if (!_storeReady)
+            throw new InvalidOperationException("Profile storage is unavailable. LRoute has not overwritten the unreadable vault; resolve the storage issue before saving changes.");
+        _store.Save(_profiles);
+    }
     private void RefreshUi()
     {
         ProfileCount.Text = $"{_profiles.Count} saved profile{(_profiles.Count == 1 ? "" : "s")}";
