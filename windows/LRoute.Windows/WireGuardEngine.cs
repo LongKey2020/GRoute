@@ -40,14 +40,10 @@ public sealed class WireGuardEngine
         var encryptedConfig = ProtectedData.Protect(plainConfig, entropy, DataProtectionScope.LocalMachine);
         await File.WriteAllBytesAsync(configPath, encryptedConfig, cancellationToken);
 
-        await RunElevatedAsync("icacls.exe", new[]
-        {
-            ProgramDataDirectory, "/inheritance:r", "/grant:r",
-            "*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F",
-            "*" + System.Security.Principal.WindowsIdentity.GetCurrent().User!.Value + ":(OI)(CI)M"
-        }, cancellationToken);
-
-        await RunElevatedAsync(executable, new[] { "/installtunnelservice", configPath }, cancellationToken);
+        await RunElevatedWireGuardInstallAsync(
+            executable, configPath, ProgramDataDirectory,
+            System.Security.Principal.WindowsIdentity.GetCurrent().User!.Value,
+            cancellationToken);
         var serviceName = "WireGuardTunnel$" + profile.TunnelName;
         for (var attempt = 0; attempt < 20; attempt++)
         {
@@ -82,6 +78,44 @@ public sealed class WireGuardEngine
     {
         var result = await RunAsync("sc.exe", new[] { "query", serviceName }, token);
         return result.ExitCode == 0 && result.Output.Contains("RUNNING", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task RunElevatedWireGuardInstallAsync(
+        string wireGuardExe, string configPath, string dataDirectory, string userSid,
+        CancellationToken token)
+    {
+        // Apply ACLs and install the tunnel in one elevated PowerShell process,
+        // so the user sees one UAC consent prompt rather than two.
+        static string PsQuote(string value) => "'" + value.Replace("'", "''") + "'";
+        var command =
+            "& { " +
+            "& 'icacls.exe' " + PsQuote(dataDirectory) +
+            " '/inheritance:r' '/grant:r' " +
+            "'*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' " +
+            PsQuote("*" + userSid + ":(OI)(CI)M") + "; " +
+            "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; " +
+            "& " + PsQuote(wireGuardExe) + " '/installtunnelservice' " +
+            PsQuote(configPath) + "; exit $LASTEXITCODE }";
+
+        var start = new ProcessStartInfo("powershell.exe")
+        {
+            UseShellExecute = true,
+            Verb = "runas",
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        start.ArgumentList.Add("-NoProfile");
+        start.ArgumentList.Add("-NonInteractive");
+        start.ArgumentList.Add("-ExecutionPolicy");
+        start.ArgumentList.Add("Bypass");
+        start.ArgumentList.Add("-Command");
+        start.ArgumentList.Add(command);
+
+        using var process = Process.Start(start)
+            ?? throw new InvalidOperationException("Could not start the elevated WireGuard installation.");
+        await process.WaitForExitAsync(token);
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException(
+                $"WireGuard installation failed (exit code {process.ExitCode}). The elevated ACL or tunnel-service command failed.");
     }
 
     private static async Task RunElevatedAsync(string fileName, IEnumerable<string> arguments, CancellationToken token)
