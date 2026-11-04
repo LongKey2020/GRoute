@@ -5,38 +5,59 @@ using System.Web;
 
 namespace LRoute.Windows.Domain;
 
+/// <summary>Result of importing profiles, including per-line errors.</summary>
+public sealed record ProxyParseResult(IReadOnlyList<ProxyProfile> Profiles, IReadOnlyList<string> Errors);
+
 /// <summary>Parses common Xray share links and preserves raw Xray JSON profiles.</summary>
 public static class ProxyLinkParser
 {
-    public static IReadOnlyList<ProxyProfile> ParseMany(string input)
+    public static IReadOnlyList<ProxyProfile> ParseMany(string input) =>
+        ParseManyDetailed(input).Profiles;
+
+    public static ProxyParseResult ParseManyDetailed(string input)
     {
         var text = input.Trim();
-        if (text.Length == 0) return [];
+        if (text.Length == 0) return new ProxyParseResult([], []);
+
         if (text.StartsWith("{") || text.StartsWith("["))
         {
             using var doc = JsonDocument.Parse(text);
-            var result = new List<ProxyProfile>();
+            var jsonProfiles = new List<ProxyProfile>();
             if (doc.RootElement.ValueKind == JsonValueKind.Array)
             {
                 var items = doc.RootElement.EnumerateArray().ToArray();
                 if (items.Length > 0 && items.All(item =>
                     item.ValueKind == JsonValueKind.Object && item.TryGetProperty("protocol", out _)))
-                    AddOutboundBundle(items, result);
+                    AddOutboundBundle(items, jsonProfiles);
                 else
-                    foreach (var item in items) AddJson(item, result);
+                    foreach (var item in items) AddJson(item, jsonProfiles);
             }
-            else AddJson(doc.RootElement, result);
-            return result;
+            else AddJson(doc.RootElement, jsonProfiles);
+            return new ProxyParseResult(jsonProfiles, []);
         }
 
         var decoded = DecodeSubscription(text);
         var profiles = new List<ProxyProfile>();
-        foreach (var line in decoded.Split(['\r', '\n', ' ', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        var errors = new List<string>();
+        var lines = decoded.Split(new[] { '\\r', '\\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        for (var index = 0; index < lines.Length; index++)
         {
-            var profile = ParseLink(line);
-            if (profile is not null) profiles.Add(profile);
+            var line = lines[index].Trim();
+            if (line.Length == 0) continue;
+            try
+            {
+                var profile = ParseLink(line);
+                if (profile is not null) profiles.Add(profile);
+                else if (line.Contains("://", StringComparison.Ordinal))
+                    errors.Add($"Line {index + 1}: unsupported or invalid protocol.");
+            }
+            catch (Exception ex) when (ex is FormatException or JsonException or ArgumentException or OverflowException)
+            {
+                errors.Add($"Line {index + 1}: {ex.Message}");
+            }
         }
-        return profiles;
+
+        return new ProxyParseResult(profiles, errors);
     }
 
     public static ProxyProfile? ParseLink(string value)
