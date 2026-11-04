@@ -28,8 +28,9 @@ public sealed class WireGuardEngine
             ?? throw new FileNotFoundException("WireGuard for Windows is not installed. Install the official client first.");
         if (!File.Exists(profile.FilePath))
             throw new FileNotFoundException("The selected profile file could not be found.", profile.FilePath);
-        if (string.IsNullOrWhiteSpace(profile.TunnelName))
-            throw new InvalidOperationException("The profile has no tunnel identifier. Remove and re-import this profile.");
+        if (string.IsNullOrWhiteSpace(profile.TunnelName) || profile.TunnelName.Length > 64 ||
+            profile.TunnelName.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '-' or '_')))
+            throw new InvalidOperationException("The profile has an invalid tunnel identifier. Remove and re-import this profile.");
 
         Directory.CreateDirectory(ProgramDataDirectory);
         var configPath = Path.Combine(ProgramDataDirectory, profile.TunnelName + ".conf");
@@ -70,9 +71,9 @@ public sealed class WireGuardEngine
         var executable = FindExecutable()
             ?? throw new FileNotFoundException("WireGuard for Windows was not found.");
         var serviceName = "WireGuardTunnel$" + profile.TunnelName;
-        if (!await ServiceExistsAsync(serviceName, cancellationToken)) return;
+        if (await ServiceExistsAsync(serviceName, cancellationToken))
+            await RunElevatedAsync(executable, new[] { "/uninstalltunnelservice", profile.TunnelName }, cancellationToken);
 
-        await RunElevatedAsync(executable, new[] { "/uninstalltunnelservice", profile.TunnelName }, cancellationToken);
         var configPath = Path.Combine(ProgramDataDirectory, profile.TunnelName + ".conf");
         try { if (File.Exists(configPath)) File.Delete(configPath); } catch { }
     }
