@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Win32;
 using LRoute.Windows.Domain;
 using LRoute.Windows.Infrastructure;
 
@@ -90,6 +91,65 @@ try
         .GetProperty("servers")[0].TryGetProperty("users", out _),
         "Unauthenticated HTTP proxy must not emit an empty users array.");
     Console.WriteLine("PASS: unauthenticated HTTP proxy config");
+
+    const string internetSettingsPath = @"Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings";
+    var manager = new SystemProxyManager();
+    manager.RecoverPreviousSession();
+    var managedValues = new[] { "ProxyEnable", "ProxyServer", "ProxyOverride", "AutoConfigURL", "AutoDetect" };
+    static Dictionary<string, (bool Exists, object? Value, RegistryValueKind Kind)> CaptureProxySettings(
+        string path, IEnumerable<string> names)
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(path, writable: false)
+            ?? throw new InvalidOperationException("Windows Internet Settings registry key is unavailable.");
+        var existing = new HashSet<string>(key.GetValueNames(), StringComparer.OrdinalIgnoreCase);
+        var snapshot = new Dictionary<string, (bool, object?, RegistryValueKind)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in names)
+        {
+            var exists = existing.Contains(name);
+            snapshot[name] = exists
+                ? (true, key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames), key.GetValueKind(name))
+                : (false, null, RegistryValueKind.Unknown);
+        }
+        return snapshot;
+    }
+    void AssertProxySettingsRestored(Dictionary<string, (bool Exists, object? Value, RegistryValueKind Kind)> expected)
+    {
+        var actual = CaptureProxySettings(internetSettingsPath, managedValues);
+        foreach (var name in managedValues)
+        {
+            Assert(actual[name].Exists == expected[name].Exists, $"Windows proxy value existence was not restored: {name}");
+            Assert(Equals(actual[name].Value, expected[name].Value), $"Windows proxy value was not restored: {name}");
+            Assert(actual[name].Kind == expected[name].Kind, $"Windows proxy registry type was not restored: {name}");
+        }
+    }
+
+    var originalProxySettings = CaptureProxySettings(internetSettingsPath, managedValues);
+    try
+    {
+        manager.Activate(2081);
+        Assert(manager.IsActive, "System proxy backup should exist after activation.");
+        using (var key = Registry.CurrentUser.OpenSubKey(internetSettingsPath, writable: false))
+        {
+            Assert(Convert.ToInt32(key?.GetValue("ProxyEnable") ?? 0) == 1,
+                "Windows Internet Settings proxy should be enabled.");
+            Assert(Equals(key?.GetValue("ProxyServer"), "http=127.0.0.1:2081;https=127.0.0.1:2081"),
+                "Windows Internet Settings should point to LRoute's local HTTP proxy.");
+        }
+        manager.Restore();
+        Assert(!manager.IsActive, "System proxy backup should be removed after restore.");
+        AssertProxySettingsRestored(originalProxySettings);
+        Console.WriteLine("PASS: Windows system proxy activation and exact restoration");
+
+        manager.Activate(2081);
+        new SystemProxyManager().RecoverPreviousSession();
+        Assert(!manager.IsActive, "Startup recovery should remove the stale system proxy backup.");
+        AssertProxySettingsRestored(originalProxySettings);
+        Console.WriteLine("PASS: Windows system proxy crash recovery");
+    }
+    finally
+    {
+        if (manager.IsActive) manager.Restore();
+    }
 }
 finally
 {
