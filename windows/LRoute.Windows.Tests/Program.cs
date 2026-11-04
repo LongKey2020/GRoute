@@ -92,7 +92,7 @@ try
         "Unauthenticated HTTP proxy must not emit an empty users array.");
     Console.WriteLine("PASS: unauthenticated HTTP proxy config");
 
-    const string internetSettingsPath = @"Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings";
+    const string internetSettingsPath = @"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
     var manager = new SystemProxyManager();
     manager.RecoverPreviousSession();
     var managedValues = new[] { "ProxyEnable", "ProxyServer", "ProxyOverride", "AutoConfigURL", "AutoDetect" };
