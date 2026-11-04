@@ -15,6 +15,8 @@ public sealed class XrayEngine : IDisposable
     private string? _runtimeConfigPath;
     private bool _tunMode;
 
+    public event EventHandler? ProcessExited;
+
     public bool IsRunning
     {
         get
@@ -117,10 +119,12 @@ public sealed class XrayEngine : IDisposable
         process.Exited += (_, _) =>
         {
             string? exitedConfig = null;
+            var wasCurrentProcess = false;
             lock (_sync)
             {
                 if (ReferenceEquals(_process, process))
                 {
+                    wasCurrentProcess = true;
                     _process = null;
                     exitedConfig = _runtimeConfigPath;
                     _runtimeConfigPath = null;
@@ -128,6 +132,7 @@ public sealed class XrayEngine : IDisposable
                 }
             }
             if (exitedConfig is not null) TryDeleteRuntimeFiles(exitedConfig);
+            if (wasCurrentProcess) ProcessExited?.Invoke(this, EventArgs.Empty);
         };
 
         try
