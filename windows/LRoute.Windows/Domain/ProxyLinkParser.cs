@@ -39,7 +39,7 @@ public static class ProxyLinkParser
         var decoded = DecodeSubscription(text);
         var profiles = new List<ProxyProfile>();
         var errors = new List<string>();
-        var lines = decoded.Split(new[] { '\\r', '\\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var lines = decoded.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         for (var index = 0; index < lines.Length; index++)
         {
             var line = lines[index].Trim();
