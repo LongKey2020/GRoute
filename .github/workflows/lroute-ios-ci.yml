@@ -12,6 +12,11 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+          cache: false
       - name: Show Xcode and Go
         run: |
           xcodebuild -version
@@ -32,7 +37,7 @@ jobs:
           fi
           test -d "$WG_DIR"
           make -C "$WG_DIR" \
-            PLATFORM_NAME=iphonesimulator \
+            PLATFORM_NAME=iphoneos \
             ARCHS=arm64 \
             SDKROOT="$(xcrun --sdk iphonesimulator --show-sdk-path)" \
             CONFIGURATION_BUILD_DIR="$GITHUB_WORKSPACE/build/wireguard"
