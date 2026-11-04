@@ -10,7 +10,6 @@ namespace LRoute.Windows;
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<ProfileItem> _profiles = new();
-    private readonly WireGuardEngine _wireGuard = new();
     private ProfileItem? _activeProfile;
     private bool _isConnected;
 
@@ -45,10 +44,12 @@ public partial class MainWindow : Window
             var type = extension switch
             {
                 ".conf" => DetectWireGuardType(file),
-                ".json" => "Xray JSON",
-                ".txt" => "Text configuration",
+                ".json" => "Xray JSON (engine pending)",
+                ".txt" => "Text configuration (engine pending)",
                 _ => "Unknown configuration"
             };
+            if (type == "WireGuard")
+                type = "WireGuard (temporarily disabled)";
 
             if (_profiles.Any(p => string.Equals(p.FilePath, file, StringComparison.OrdinalIgnoreCase)))
                 continue;
@@ -66,77 +67,22 @@ public partial class MainWindow : Window
             "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
-    private async void ConnectButton_Click(object sender, RoutedEventArgs e)
+    private void ConnectButton_Click(object sender, RoutedEventArgs e)
     {
-        if (ProfilesList.SelectedItem is not ProfileItem selected) return;
-        ConnectButton.IsEnabled = false;
-        try
-        {
-            if (_isConnected && ReferenceEquals(selected, _activeProfile))
-            {
-                await _wireGuard.DisconnectAsync(selected);
-                _isConnected = false;
-                _activeProfile = null;
-                ConnectionMessage.Text = "Disconnected";
-            }
-            else
-            {
-                if (selected.Type != "WireGuard")
-                    throw new NotSupportedException(
-                        "This profile format is not enabled yet. Standard WireGuard is supported first; AmneziaWG and Xray adapters are next.");
-
-                ConnectionMessage.Text = "Connecting… approve the Windows administrator prompt.";
-                await _wireGuard.ConnectAsync(selected);
-                _activeProfile = selected;
-                _isConnected = true;
-                ConnectionMessage.Text = $"Connected • {selected.Name}";
-            }
-        }
-        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
-        {
-            ConnectionMessage.Text = "Administrator permission was cancelled.";
-        }
-        catch (Exception ex)
-        {
-            _isConnected = false;
-            _activeProfile = null;
-            ConnectionMessage.Text = "Connection failed";
-            MessageBox.Show(this, ex.Message, "LRoute • WireGuard",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-        finally
-        {
-            ConnectButton.IsEnabled = true;
-            UpdateEngineStatus();
-            UpdateSelectedProfileState();
-        }
+        MessageBox.Show(this,
+            "WireGuard support is temporarily disabled while the Windows tunnel engine is being reworked.",
+            "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
-    private async void ProfilesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void ProfilesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         UpdateSelectedProfileState();
-        if (ProfilesList.SelectedItem is not ProfileItem selected || _isConnected) return;
-        try
-        {
-            if (await _wireGuard.IsConnectedAsync(selected))
-            {
-                _activeProfile = selected;
-                _isConnected = true;
-                UpdateEngineStatus();
-                UpdateSelectedProfileState();
-            }
-        }
-        catch { /* A status refresh must not interrupt profile selection. */ }
     }
 
     private void UpdateSelectedProfileState()
     {
-        var selected = ProfilesList.SelectedItem as ProfileItem;
-        var isActive = selected is not null && ReferenceEquals(selected, _activeProfile);
-        ConnectButton.Content = isActive && _isConnected ? "DISCONNECT" : "CONNECT";
-        ConnectButton.IsEnabled = selected is not null && (!_isConnected || isActive);
-        if (selected is not null && selected.Type != "WireGuard" && !_isConnected)
-            ConnectButton.IsEnabled = false;
+        ConnectButton.Content = "UNAVAILABLE";
+        ConnectButton.IsEnabled = false;
     }
 
     private void RemoveProfile_Click(object sender, RoutedEventArgs e)
@@ -194,13 +140,9 @@ public partial class MainWindow : Window
 
     private void UpdateEngineStatus()
     {
-        var installed = _wireGuard.FindExecutable() is not null;
-        EngineStatus.Text = installed ? "WireGuard engine available" : "WireGuard engine not installed";
-        ConnectionStatus.Text = _isConnected ? "●  CONNECTED" : "●  DISCONNECTED";
-        ConnectionMessage.Text = _isConnected
-            ? $"Connected • {_activeProfile?.Name}"
-            : installed ? "Select a WireGuard profile to connect."
-            : "Install WireGuard for Windows to enable VPN connections.";
+        EngineStatus.Text = "WireGuard temporarily disabled";
+        ConnectionStatus.Text = "●  DISCONNECTED";
+        ConnectionMessage.Text = "WireGuard support is temporarily paused.";
         UpdateSelectedProfileState();
     }
 
