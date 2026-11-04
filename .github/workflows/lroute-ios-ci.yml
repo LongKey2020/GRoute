@@ -25,6 +25,7 @@ jobs:
         run: |
           git clone --depth 1 https://git.zx2c4.com/wireguard-apple vendor/wireguard-apple
           sed -i '' '1s/5.3/5.5/' vendor/wireguard-apple/Package.swift
+          python3 -c 'from pathlib import Path; p=Path("vendor/wireguard-apple/Sources/WireGuardKitC/WireGuardKitC.h"); s=p.read_text(); p.write_text("#include <sys/types.h>\\n"+s if "#include <sys/types.h>" not in s else s)'
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
@@ -45,4 +46,4 @@ jobs:
           test -f "$GITHUB_WORKSPACE/build/wireguard/libwg-go.a"
       - name: Build simulator app and tunnel extension
         run: |
-          xcodebuild -project LRoute.xcodeproj -scheme LRoute -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO LIBRARY_SEARCH_PATHS="$(pwd)/build/wireguard" OTHER_LDFLAGS="-lwg-go" build
+          xcodebuild -project LRoute.xcodeproj -scheme LRoute -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO LIBRARY_SEARCH_PATHS="$(pwd)/build/wireguard" OTHER_LDFLAGS="-lwg-go" build
