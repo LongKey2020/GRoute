@@ -19,6 +19,7 @@ targets:
       - path: ios/App
     dependencies:
       - target: LRoutePacketTunnel
+      - target: LRouteXrayTunnel
       - package: WireGuardKit
         product: WireGuardKit
     settings:
@@ -29,6 +30,24 @@ targets:
         CODE_SIGN_ENTITLEMENTS: ios/App/LRoute.entitlements
         GENERATE_INFOPLIST_FILE: NO
         ENABLE_BITCODE: NO
+  LRouteXrayTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ios/XrayTunnel
+    dependencies:
+      - framework: vendor/libXray/LibXray.xcframework
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.gozar.lroute.XrayTunnel
+        PRODUCT_NAME: LRouteXrayTunnel
+        INFOPLIST_FILE: ios/XrayTunnel/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ios/XrayTunnel/XrayTunnel.entitlements
+        APPLICATION_EXTENSION_API_ONLY: YES
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_BITCODE: NO
+
   LRoutePacketTunnel:
     type: app-extension
     platform: iOS
