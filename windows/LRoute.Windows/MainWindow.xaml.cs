@@ -44,7 +44,7 @@ public partial class MainWindow : Window
             var extension = Path.GetExtension(file).ToLowerInvariant();
             var type = extension switch
             {
-                ".conf" => "WireGuard / AmneziaWG",
+                ".conf" => DetectWireGuardType(file),
                 ".json" => "Xray JSON",
                 ".txt" => "Text configuration",
                 _ => "Unknown configuration"
@@ -53,7 +53,7 @@ public partial class MainWindow : Window
             if (_profiles.Any(p => string.Equals(p.FilePath, file, StringComparison.OrdinalIgnoreCase)))
                 continue;
 
-            _profiles.Add(new ProfileItem(Path.GetFileNameWithoutExtension(file), type, file));
+            _profiles.Add(new ProfileItem(Path.GetFileNameWithoutExtension(file), type, file, "LRoute-" + Guid.NewGuid().ToString("N")[..12]));
             imported++;
         }
 
@@ -86,8 +86,8 @@ public partial class MainWindow : Window
             }
             else
             {
-                if (selected.Type != "WireGuard / AmneziaWG")
-                    throw new NotSupportedException("Only standard WireGuard profiles are enabled in this build. Xray and AmneziaWG support will be added after their engine adapters are ready.");
+                if (selected.Type != "WireGuard")
+                    throw new NotSupportedException("This profile format is not enabled yet. The current Windows engine supports standard WireGuard profiles only; AmneziaWG and Xray adapters are next.");
                 ConnectionMessage.Text = "Connecting… approve the Windows administrator prompt.";
                 await _wireGuard.ConnectAsync(selected);
                 _isConnected = true;
@@ -142,7 +142,7 @@ public partial class MainWindow : Window
             var saved = JsonSerializer.Deserialize<List<ProfileItem>>(File.ReadAllText(ProfileIndexPath));
             if (saved is null) return;
             foreach (var profile in saved.Where(p => File.Exists(p.FilePath)))
-                _profiles.Add(profile.EnsureTunnelName());
+                _profiles.Add(profile);
         }
         catch (Exception ex)
         {
@@ -184,8 +184,28 @@ public partial class MainWindow : Window
     }
 }
 
-public sealed record ProfileItem(string Name, string Type, string FilePath, string TunnelName = "")
+public sealed record ProfileItem(string Name, string Type, string FilePath, string TunnelName = "");
+
+private static string DetectWireGuardType(string filePath)
 {
-    public ProfileItem EnsureTunnelName() =>
-        string.IsNullOrWhiteSpace(TunnelName) ? this with { TunnelName = "LRoute-" + Guid.NewGuid().ToString("N")[..12] } : this;
+    try
+    {
+        var text = File.ReadAllText(filePath);
+        var awgKeys = new[] { "Jc", "Jmin", "Jmax", "S1", "S2", "S3", "S4", "H1", "H2", "H3", "H4" };
+        foreach (var line in text.Split('\\n'))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith('#') || !trimmed.Contains('=')) continue;
+            var key = trimmed.Split('=', 2)[0].Trim();
+            if (awgKeys.Contains(key, StringComparer.OrdinalIgnoreCase))
+                return "AmneziaWG (engine pending)";
+        }
+        return text.Contains("[Interface]", StringComparison.OrdinalIgnoreCase)
+            ? "WireGuard"
+            : "Unknown .conf";
+    }
+    catch
+    {
+        return "Unreadable configuration";
+    }
 }
