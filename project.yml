@@ -46,3 +46,20 @@ targets:
         APPLICATION_EXTENSION_API_ONLY: YES
         GENERATE_INFOPLIST_FILE: NO
         ENABLE_BITCODE: NO
+
+  LRouteWireGuardTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ios/Tests
+      - path: ios/PacketTunnel/WireGuardConfigParser.swift
+    dependencies:
+      - target: LRoute
+      - package: WireGuardKit
+        product: WireGuardKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.gozar.lroute.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/LRoute.app/LRoute"
+        BUNDLE_LOADER: "$(TEST_HOST)"

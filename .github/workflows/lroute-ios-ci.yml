@@ -47,3 +47,7 @@ jobs:
       - name: Build simulator app and tunnel extension
         run: |
           xcodebuild -project LRoute.xcodeproj -scheme LRoute -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO LIBRARY_SEARCH_PATHS="$(pwd)/build/wireguard" OTHER_LDFLAGS="-lwg-go" build
+
+      - name: Run WireGuard config parser tests
+        run: |
+          xcodebuild test -project LRoute.xcodeproj -scheme LRouteWireGuardTests -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO LIBRARY_SEARCH_PATHS="$(pwd)/build/wireguard" OTHER_LDFLAGS="-lwg-go"
