@@ -8,6 +8,7 @@ public sealed record ProxyProfile
     public string Server { get; init; } = "";
     public int Port { get; init; }
     public string UserId { get; init; } = "";
+    public int AlterId { get; init; } = 0;
     public string Password { get; init; } = "";
     public string Method { get; init; } = "";
     public string Network { get; init; } = "tcp";
