@@ -44,12 +44,15 @@ public static class ProxyLinkParser
         if (scheme == "ss") return ParseShadowsocks(uri, value);
 
         var user = Uri.UnescapeDataString(uri.UserInfo);
-        var id = user;
+        var id = "";
         var password = "";
-        if (scheme is "trojan" or "ss" && user.Contains(':'))
+        if (scheme is "vless" or "vmess")
+            id = user;
+        else if (scheme is "trojan" or "socks" or "socks5" or "http")
         {
             var split = user.Split(':', 2);
-            id = split[0]; password = split[1];
+            id = split[0];
+            if (split.Length == 2) password = split[1];
         }
         var q = HttpUtility.ParseQueryString(uri.Query);
         var protocol = scheme switch { "socks5" => "socks", _ => scheme };
@@ -67,7 +70,7 @@ public static class ProxyLinkParser
             ShortId = q["sid"] ?? q["shortId"] ?? "",
             Fingerprint = q["fp"] ?? "chrome",
             Alpn = q["alpn"] ?? "",
-            Method = q["encryption"] ?? "",
+            Method = q["encryption"] ?? q["method"] ?? "",
             SourceUri = value
         };
     }
@@ -83,7 +86,7 @@ public static class ProxyLinkParser
             Name = Uri.UnescapeDataString(original.Split('#').LastOrDefault() ?? "") is { Length: > 0 } n ? n : Get("ps", Get("add")),
             Protocol = "vmess", Server = Get("add"), Port = int.TryParse(Get("port"), out var p) ? p : 0,
             UserId = Get("id"), Method = Get("scy", "auto"), Network = Get("net", "tcp"),
-            Security = Get("tls", "none"), Sni = Get("sni"), Host = Get("host"), Path = Get("path"),
+            Security = NormalizeSecurity(Get("tls", "none")), Sni = Get("sni"), Host = Get("host"), Path = Get("path"),
             SourceUri = original
         };
     }
@@ -142,5 +145,13 @@ public static class ProxyLinkParser
         return text;
     }
 
-    private static string PadBase64(string value) => value.Replace('-', '+').Replace('_', '/') + new string('=', (4 - value.Length % 4) % 4);
+    private static string NormalizeSecurity(string value) =>
+        value.Equals("tls", StringComparison.OrdinalIgnoreCase) ? "tls" :
+        value.Equals("reality", StringComparison.OrdinalIgnoreCase) ? "reality" : "none";
+
+    private static string PadBase64(string value)
+    {
+        var normalized = value.Replace('-', '+').Replace('_', '/');
+        return normalized + new string('=', (4 - normalized.Length % 4) % 4);
+    }
 }
