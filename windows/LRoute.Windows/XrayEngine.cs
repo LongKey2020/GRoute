@@ -78,7 +78,9 @@ public sealed class XrayEngine : IDisposable
         }
         catch
         {
-            if (tunMode) TryDeleteRuntimeFiles(runtimeConfigPath);
+            // Runtime configs contain proxy credentials. Remove them even when
+            // validation fails; callers must not leave plaintext secrets behind.
+            TryDeleteRuntimeFiles(runtimeConfigPath);
             throw;
         }
 
@@ -114,14 +116,18 @@ public sealed class XrayEngine : IDisposable
         }
         process.Exited += (_, _) =>
         {
+            string? exitedConfig = null;
             lock (_sync)
             {
                 if (ReferenceEquals(_process, process))
                 {
                     _process = null;
+                    exitedConfig = _runtimeConfigPath;
+                    _runtimeConfigPath = null;
                     _tunMode = false;
                 }
             }
+            if (exitedConfig is not null) TryDeleteRuntimeFiles(exitedConfig);
         };
 
         try
@@ -139,7 +145,7 @@ public sealed class XrayEngine : IDisposable
             lock (_sync)
             {
                 _process = process;
-                _runtimeConfigPath = tunMode ? runtimeConfigPath : null;
+                _runtimeConfigPath = runtimeConfigPath;
                 _tunMode = tunMode;
             }
 
@@ -173,7 +179,7 @@ public sealed class XrayEngine : IDisposable
                 try { process.Kill(entireProcessTree: true); } catch { }
             }
             process.Dispose();
-            if (tunMode) TryDeleteRuntimeFiles(runtimeConfigPath);
+            TryDeleteRuntimeFiles(runtimeConfigPath);
             throw;
         }
     }
