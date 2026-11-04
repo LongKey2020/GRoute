@@ -40,7 +40,8 @@ public sealed class WireGuardEngine
         await RunElevatedAsync("icacls.exe", new[]
         {
             ProgramDataDirectory, "/inheritance:r", "/grant:r",
-            "*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F"
+            "*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F",
+            "*" + System.Security.Principal.WindowsIdentity.GetCurrent().User!.Value + ":(OI)(CI)M"
         }, cancellationToken);
 
         await RunElevatedAsync(executable, new[] { "/installtunnelservice", configPath }, cancellationToken);
