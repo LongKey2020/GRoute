@@ -29,6 +29,62 @@ public partial class MainWindow : Window
         UpdateEngineStatus();
     }
 
+    private void ProfileSelector_Click(object sender, RoutedEventArgs e) => ImportButton_Click(sender, e);
+
+    private void VpnSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        MessageBox.Show(this, "DNS and Split Tunnel controls are not connected in this Windows port yet.",
+            "LRoute • VPN Settings", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void ScanQrButton_Click(object sender, RoutedEventArgs e)
+    {
+        MessageBox.Show(this, "QR decoding is not implemented in this Windows build yet. Use Import Config File for now.",
+            "LRoute • Scan QR", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void ManualConfigButton_Click(object sender, RoutedEventArgs e)
+    {
+        var editor = new Window
+        {
+            Title = "LRoute • Manual Config", Width = 680, Height = 520,
+            MinWidth = 520, MinHeight = 360, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this, Background = System.Windows.Media.Brushes.Black,
+            Foreground = System.Windows.Media.Brushes.White, WindowStyle = WindowStyle.SingleBorderWindow,
+            ResizeMode = ResizeMode.CanResize
+        };
+        var layout = new DockPanel { Margin = new Thickness(16) };
+        var save = new Button { Content = "SAVE PROFILE", Height = 44, Margin = new Thickness(0, 12, 0, 0),
+            Background = System.Windows.Media.Brushes.Black, Foreground = System.Windows.Media.Brushes.White };
+        DockPanel.SetDock(save, Dock.Bottom);
+        var input = new TextBox { AcceptsReturn = true, AcceptsTab = true, TextWrapping = TextWrapping.NoWrap,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 13,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(20,20,20)),
+            Foreground = System.Windows.Media.Brushes.White, CaretBrush = System.Windows.Media.Brushes.White,
+            Padding = new Thickness(10), Text = "{\n  \"log\": { \"loglevel\": \"warning\" },\n  \"inbounds\": [],\n  \"outbounds\": []\n}" };
+        layout.Children.Add(save); layout.Children.Add(input); editor.Content = layout;
+        save.Click += (_, _) =>
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(input.Text);
+                Directory.CreateDirectory(DataDirectory);
+                var path = Path.Combine(DataDirectory, "manual-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".json");
+                File.WriteAllText(path, input.Text);
+                _profiles.Add(new ProfileItem(Path.GetFileNameWithoutExtension(path), "Xray JSON", path,
+                    "LRoute-" + Guid.NewGuid().ToString("N")[..12]));
+                SaveProfiles(); RefreshProfileView(); editor.DialogResult = true; editor.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(editor, "Invalid JSON or could not save the profile.\\n" + ex.Message,
+                    "LRoute • Manual Config", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        };
+        editor.ShowDialog();
+    }
+
     private void ImportButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog
