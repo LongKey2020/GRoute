@@ -104,7 +104,7 @@ public sealed class WireGuardEngine
             "& 'icacls.exe' " + PsQuote(dataDirectory) +
             " '/inheritance:r' '/grant:r' " +
             "'*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' " +
-            PsQuote("*" + userSid + ":(OI)(CI)M") + "; " +
+            PsQuote("*" + userSid + ":(OI)(CI)M") + " '/T' '/C'; " +
             "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; " +
             "& " + PsQuote(wireGuardExe) + " '/installtunnelservice' " +
             PsQuote(configPath) + "; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; " +
@@ -140,7 +140,7 @@ public sealed class WireGuardEngine
 
     private static async Task RunElevatedAsync(string fileName, IEnumerable<string> arguments, CancellationToken token)
     {
-        // Tunnel installation and protected ProgramData ACL changes require an
+        // Tunnel installation and private config ACL changes require an
         // administrator token. Request elevation only for this operation.
         var start = new ProcessStartInfo(fileName)
         {
