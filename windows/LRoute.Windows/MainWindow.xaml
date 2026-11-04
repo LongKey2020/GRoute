@@ -64,6 +64,11 @@
      </StackPanel>
     </Border>
     <Button Content="VPN SETTINGS  ·  DNS / SPLIT TUNNEL" Style="{StaticResource OutlineAction}" Margin="0,0,0,26"/>
+    <StackPanel Margin="0,0,0,20">
+     <TextBlock x:Name="ConnectionStatus" Text="●  DISCONNECTED" Foreground="#BDBDBD" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+     <TextBlock x:Name="ConnectionMessage" Text="Select a profile to get started." Foreground="#AAAAAA" FontSize="13" TextWrapping="Wrap" TextAlignment="Center" Margin="0,7,0,3"/>
+     <TextBlock x:Name="EngineStatus" Text="Xray-core runtime status: checking" Foreground="#777777" FontSize="12" HorizontalAlignment="Center"/>
+    </StackPanel>
     <Grid Margin="0,0,0,26">
      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
      <Button Grid.Column="0" Content="MANUAL CONFIG" Style="{StaticResource OutlineAction}" Margin="0,0,9,0"/>
