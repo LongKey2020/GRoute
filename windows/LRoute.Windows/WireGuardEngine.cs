@@ -46,8 +46,12 @@ public sealed class WireGuardEngine
 
         await RunElevatedAsync(executable, new[] { "/installtunnelservice", configPath }, cancellationToken);
         var serviceName = "WireGuardTunnel$" + profile.TunnelName;
-        if (!await IsServiceRunningAsync(serviceName, cancellationToken))
-            throw new InvalidOperationException("WireGuard did not report the tunnel service as Running. Check the WireGuard log.");
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            if (await IsServiceRunningAsync(serviceName, cancellationToken)) return;
+            await Task.Delay(500, cancellationToken);
+        }
+        throw new InvalidOperationException("WireGuard did not report the tunnel service as Running within 10 seconds. Check the WireGuard log.");
     }
 
     public async Task DisconnectAsync(ProfileItem profile, CancellationToken cancellationToken = default)
