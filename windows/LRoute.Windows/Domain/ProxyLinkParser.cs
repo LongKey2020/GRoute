@@ -17,8 +17,12 @@ public static class ProxyLinkParser
             var result = new List<ProxyProfile>();
             if (doc.RootElement.ValueKind == JsonValueKind.Array)
             {
-                foreach (var item in doc.RootElement.EnumerateArray())
-                    AddJson(item, result);
+                var items = doc.RootElement.EnumerateArray().ToArray();
+                if (items.Length > 0 && items.All(item =>
+                    item.ValueKind == JsonValueKind.Object && item.TryGetProperty("protocol", out _)))
+                    AddOutboundBundle(items, result);
+                else
+                    foreach (var item in items) AddJson(item, result);
             }
             else AddJson(doc.RootElement, result);
             return result;
@@ -141,7 +145,72 @@ public static class ProxyLinkParser
             return;
         }
 
-        AddJsonOutbound(root, output, root);
+        // A standalone outbound object (or an array of outbound objects) is not
+        // a complete Xray config. Wrap it with local proxy inbounds and routing
+        // so it can be validated and launched by Xray-core.
+        if (root.TryGetProperty("protocol", out _))
+            AddOutboundBundle([root], output);
+    }
+
+    private static void AddOutboundBundle(IEnumerable<JsonElement> items, List<ProxyProfile> output)
+    {
+        var proxyOutbounds = items
+            .Where(IsProxyOutbound)
+            .Select(item => JsonNode.Parse(item.GetRawText()))
+            .Where(node => node is not null)
+            .Cast<JsonNode>()
+            .ToArray();
+        if (proxyOutbounds.Length == 0) return;
+
+        // Ensure every outbound has a stable tag; route the local listeners to
+        // the first proxy outbound while retaining the remaining choices.
+        var firstTag = "proxy";
+        for (var i = 0; i < proxyOutbounds.Length; i++)
+        {
+            if (proxyOutbounds[i] is not JsonObject outbound) continue;
+            if (string.IsNullOrWhiteSpace(outbound["tag"]?.GetValue<string>()))
+                outbound["tag"] = i == 0 ? firstTag : $"proxy-{i + 1}";
+            if (i == 0) firstTag = outbound["tag"]!.GetValue<string>();
+        }
+
+        var config = new JsonObject
+        {
+            ["log"] = new JsonObject { ["loglevel"] = "warning" },
+            ["inbounds"] = new JsonArray(
+                new JsonObject
+                {
+                    ["tag"] = "socks-in", ["listen"] = "127.0.0.1", ["port"] = 2080,
+                    ["protocol"] = "socks",
+                    ["settings"] = new JsonObject { ["auth"] = "noauth", ["udp"] = true }
+                },
+                new JsonObject
+                {
+                    ["tag"] = "http-in", ["listen"] = "127.0.0.1", ["port"] = 2081,
+                    ["protocol"] = "http", ["settings"] = new JsonObject()
+                }),
+            ["outbounds"] = new JsonArray(
+                proxyOutbounds.Select(node => node.DeepClone()).ToArray()),
+            ["routing"] = new JsonObject
+            {
+                ["domainStrategy"] = "AsIs",
+                ["rules"] = new JsonArray(
+                    new JsonObject
+                    {
+                        ["type"] = "field",
+                        ["inboundTag"] = new JsonArray("socks-in", "http-in"),
+                        ["outboundTag"] = firstTag
+                    })
+            }
+        };
+
+        var raw = config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        output.Add(new ProxyProfile
+        {
+            Name = proxyOutbounds.Length == 1 ? firstTag : $"Imported Xray bundle ({proxyOutbounds.Length})",
+            Protocol = "json",
+            RawJson = raw,
+            SourceUri = "json:" + raw
+        });
     }
 
     private static bool IsProxyOutbound(JsonElement outbound)
@@ -150,20 +219,6 @@ public static class ProxyLinkParser
             !outbound.TryGetProperty("protocol", out var proto)) return false;
         var protocol = proto.GetString() ?? "";
         return protocol is not ("" or "freedom" or "blackhole" or "dns" or "loopback");
-    }
-
-    private static void AddJsonOutbound(JsonElement outbound, List<ProxyProfile> output, JsonElement root)
-    {
-        if (!IsProxyOutbound(outbound)) return;
-        var protocol = outbound.GetProperty("protocol").GetString() ?? "json";
-        var raw = root.GetRawText();
-        output.Add(new ProxyProfile
-        {
-            Name = outbound.TryGetProperty("tag", out var tag) ? tag.GetString() ?? protocol : protocol,
-            Protocol = protocol,
-            RawJson = raw,
-            SourceUri = "json:" + raw
-        });
     }
 
     private static string DecodeSubscription(string text)
