@@ -12,12 +12,31 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Show Xcode
-        run: xcodebuild -version
+      - name: Show Xcode and Go
+        run: |
+          xcodebuild -version
+          go version
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
         run: xcodegen generate --spec project.yml
+      - name: Resolve Swift packages
+        run: xcodebuild -resolvePackageDependencies -project LRoute.xcodeproj -scheme LRoute
+      - name: Build WireGuard Go backend for simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          WG_DIR="$HOME/Library/Developer/Xcode/DerivedData/SourcePackages/checkouts/wireguard-apple/Sources/WireGuardKitGo"
+          if [ ! -d "$WG_DIR" ]; then
+            WG_DIR="$(find ~/Library/Developer/Xcode/DerivedData -path '*/SourcePackages/checkouts/wireguard-apple/Sources/WireGuardKitGo' -type d -print -quit)"
+          fi
+          test -d "$WG_DIR"
+          make -C "$WG_DIR" \
+            PLATFORM_NAME=iphonesimulator \
+            ARCHS=arm64 \
+            SDKROOT="$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+            CONFIGURATION_BUILD_DIR="$GITHUB_WORKSPACE/build/wireguard"
+          test -f "$GITHUB_WORKSPACE/build/wireguard/libwg-go.a"
       - name: Build simulator app and tunnel extension
         run: |
-          xcodebuild -project LRoute.xcodeproj -scheme LRoute -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+          xcodebuild -project LRoute.xcodeproj -scheme LRoute -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO LIBRARY_SEARCH_PATHS="$(pwd)/build/wireguard" OTHER_LDFLAGS="-lwg-go" build

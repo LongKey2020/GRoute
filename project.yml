@@ -8,6 +8,10 @@ settings:
     SWIFT_VERSION: "5.9"
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
     TARGETED_DEVICE_FAMILY: "1,2"
+packages:
+  WireGuardKit:
+    url: https://git.zx2c4.com/wireguard-apple
+    branch: master
 targets:
   LRoute:
     type: application
@@ -16,6 +20,8 @@ targets:
       - path: ios/App
     dependencies:
       - target: LRoutePacketTunnel
+      - package: WireGuardKit
+        product: WireGuardKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.gozar.lroute
@@ -23,11 +29,15 @@ targets:
         INFOPLIST_FILE: ios/App/Info.plist
         CODE_SIGN_ENTITLEMENTS: ios/App/LRoute.entitlements
         GENERATE_INFOPLIST_FILE: NO
+        ENABLE_BITCODE: NO
   LRoutePacketTunnel:
     type: app-extension
     platform: iOS
     sources:
       - path: ios/PacketTunnel
+    dependencies:
+      - package: WireGuardKit
+        product: WireGuardKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: net.gozar.lroute.PacketTunnel
@@ -36,3 +46,4 @@ targets:
         CODE_SIGN_ENTITLEMENTS: ios/PacketTunnel/PacketTunnel.entitlements
         APPLICATION_EXTENSION_API_ONLY: YES
         GENERATE_INFOPLIST_FILE: NO
+        ENABLE_BITCODE: NO
