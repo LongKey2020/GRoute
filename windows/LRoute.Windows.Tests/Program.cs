@@ -150,6 +150,59 @@ try
     {
         if (manager.IsActive) manager.Restore();
     }
+
+    var profileFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LRoute");
+    Directory.CreateDirectory(profileFolder);
+    var encryptedProfilesPath = Path.Combine(profileFolder, "profiles.dat");
+    var legacyProfilesPath = Path.Combine(profileFolder, "profiles.json");
+    var originalEncryptedProfiles = File.Exists(encryptedProfilesPath) ? File.ReadAllBytes(encryptedProfilesPath) : null;
+    var originalLegacyProfiles = File.Exists(legacyProfilesPath) ? File.ReadAllBytes(legacyProfilesPath) : null;
+    try
+    {
+        File.Delete(encryptedProfilesPath);
+        File.Delete(legacyProfilesPath);
+        var profileStore = new ProfileStore();
+        var testProfile = new ProxyProfile
+        {
+            Name = "dpapi-roundtrip-test", Protocol = "vless", Server = "profile-test.invalid",
+            Port = 443, UserId = "11111111-1111-4111-8111-111111111111"
+        };
+        profileStore.Save([testProfile]);
+        var encryptedBytes = File.ReadAllBytes(encryptedProfilesPath);
+        Assert(!Encoding.UTF8.GetString(encryptedBytes).Contains(testProfile.Name, StringComparison.Ordinal),
+            "Saved profile data must not be plaintext.");
+        var roundTrip = profileStore.Load();
+        Assert(roundTrip.Count == 1 && roundTrip[0].Name == testProfile.Name && roundTrip[0].UserId == testProfile.UserId,
+            "DPAPI profile save/load round trip failed.");
+        Console.WriteLine("PASS: DPAPI encrypted profile storage round trip");
+
+        File.Delete(encryptedProfilesPath);
+        var legacyProfile = testProfile with { Name = "legacy-migration-test" };
+        File.WriteAllText(legacyProfilesPath, JsonSerializer.Serialize(new[] { legacyProfile }));
+        var migrated = profileStore.Load();
+        Assert(migrated.Count == 1 && migrated[0].Name == legacyProfile.Name,
+            "Legacy plaintext profile migration returned incorrect profiles.");
+        Assert(File.Exists(encryptedProfilesPath) && !File.Exists(legacyProfilesPath),
+            "Legacy profile file must migrate to encrypted storage and then be deleted.");
+        Console.WriteLine("PASS: legacy profile migration to DPAPI");
+
+        var corruptBytes = new byte[] { 1, 2, 3, 4, 5 };
+        File.WriteAllBytes(encryptedProfilesPath, corruptBytes);
+        var rejectedCorruptVault = false;
+        try { profileStore.Load(); }
+        catch (InvalidOperationException) { rejectedCorruptVault = true; }
+        Assert(rejectedCorruptVault, "Corrupt encrypted profile vault should be rejected.");
+        Assert(File.ReadAllBytes(encryptedProfilesPath).SequenceEqual(corruptBytes),
+            "Corrupt profile vault must remain untouched after a failed load.");
+        Console.WriteLine("PASS: corrupt profile vault preservation");
+    }
+    finally
+    {
+        if (originalEncryptedProfiles is null) File.Delete(encryptedProfilesPath);
+        else File.WriteAllBytes(encryptedProfilesPath, originalEncryptedProfiles);
+        if (originalLegacyProfiles is null) File.Delete(legacyProfilesPath);
+        else File.WriteAllBytes(legacyProfilesPath, originalLegacyProfiles);
+    }
 }
 finally
 {
