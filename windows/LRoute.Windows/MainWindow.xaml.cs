@@ -111,15 +111,26 @@ public partial class MainWindow : Window
                 }
                 else
                 {
+                    if (_xray.IsRunning)
+                    {
+                        await _xray.DisconnectAsync();
+                        _activeProfile = null;
+                    }
                     if (_activeWireGuardProfile is not null)
                     {
                         await _wireGuard.DisconnectAsync(_activeWireGuardProfile);
                         _activeWireGuardProfile = null;
                     }
-                    ConnectionMessage.Text = "Validating Xray JSON and starting engine…";
-                    await _xray.ConnectAsync(selected.FilePath);
+
+                    var tunMode = TunModeCheck.IsChecked == true;
+                    ConnectionMessage.Text = tunMode
+                        ? "Requesting administrator approval and preparing the Windows TUN adapter…"
+                        : "Validating Xray JSON and starting local proxy engine…";
+                    await _xray.ConnectAsync(selected.FilePath, tunMode);
                     _activeProfile = selected;
-                    ConnectionMessage.Text = $"Xray-core running • {selected.Name} (local proxy mode)";
+                    ConnectionMessage.Text = tunMode
+                        ? $"Xray TUN engine running • {selected.Name}"
+                        : $"Xray-core running • {selected.Name} (local proxy mode)";
                 }
             }
             else
@@ -154,6 +165,7 @@ public partial class MainWindow : Window
         var active = activeXray || activeWireGuard;
         ConnectButton.Content = active ? "DISCONNECT" : "CONNECT";
         ConnectButton.IsEnabled = selected?.Type is "Xray JSON" or "WireGuard" || active;
+        TunModeCheck.IsEnabled = !_xray.IsRunning && _activeWireGuardProfile is null;
     }
 
     private void RemoveProfile_Click(object sender, RoutedEventArgs e)
@@ -228,13 +240,17 @@ public partial class MainWindow : Window
         }
         else if (_xray.IsRunning)
         {
-            EngineStatus.Text = "Xray-core process running";
-            ConnectionStatus.Text = "●  ENGINE RUNNING";
-            ConnectionPillText.Text = "● ENGINE RUNNING";
+            EngineStatus.Text = _xray.IsTunMode
+                ? "Xray TUN engine running • Wintun"
+                : "Xray-core process running • local proxy";
+            ConnectionStatus.Text = _xray.IsTunMode ? "●  TUN ENGINE RUNNING" : "●  ENGINE RUNNING";
+            ConnectionPillText.Text = _xray.IsTunMode ? "● TUN RUNNING" : "● ENGINE RUNNING";
             ConnectionPillText.Foreground = System.Windows.Media.Brushes.White;
             ConnectionPillBorder.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(35, 35, 35));
             ConnectionPillBorder.BorderBrush = System.Windows.Media.Brushes.Gray;
-            ConnectionMessage.Text = $"Xray-core running • {_activeProfile?.Name} (local proxy mode)";
+            ConnectionMessage.Text = _xray.IsTunMode
+                ? $"Windows TUN engine running • {_activeProfile?.Name}"
+                : $"Xray-core running • {_activeProfile?.Name} (local proxy mode)";
         }
         else
         {
