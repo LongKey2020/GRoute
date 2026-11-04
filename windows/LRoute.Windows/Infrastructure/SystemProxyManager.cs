@@ -1,0 +1,140 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Microsoft.Win32;
+
+namespace LRoute.Windows.Infrastructure;
+
+/// <summary>
+/// Temporarily routes WinINET-aware Windows applications through LRoute's local HTTP proxy.
+/// The user's previous proxy/PAC settings are DPAPI-protected and restored on disconnect
+/// or recovered on the next launch after an unclean shutdown.
+/// </summary>
+public sealed class SystemProxyManager
+{
+    private const string InternetSettingsPath = @"Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings";
+    private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("LRoute.SystemProxy.v1");
+    private static readonly string BackupPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "LRoute", "system-proxy.backup");
+    private static readonly string[] ManagedValues =
+        ["ProxyEnable", "ProxyServer", "ProxyOverride", "AutoConfigURL", "AutoDetect"];
+
+    private sealed record ValueSnapshot(bool Exists, string? Text, int? Number, int Kind);
+    private sealed record ProxySnapshot(Dictionary<string, ValueSnapshot> Values);
+
+    public bool IsActive => File.Exists(BackupPath);
+
+    /// <summary>Restore a previous session's settings before the new UI starts.</summary>
+    public void RecoverPreviousSession()
+    {
+        if (File.Exists(BackupPath)) Restore();
+    }
+
+    public void Activate(int httpPort = 2081)
+    {
+        if (httpPort is < 1 or > 65535) throw new ArgumentOutOfRangeException(nameof(httpPort));
+        if (File.Exists(BackupPath))
+            throw new InvalidOperationException("A previous LRoute system-proxy backup exists. Restore it before connecting again.");
+
+        using var key = Registry.CurrentUser.OpenSubKey(InternetSettingsPath, writable: true)
+            ?? throw new InvalidOperationException("Could not open the current user's Windows Internet Settings registry key.");
+
+        var values = new Dictionary<string, ValueSnapshot>(StringComparer.Ordinal);
+        foreach (var name in ManagedValues)
+        {
+            var kind = key.GetValueKind(name);
+            var raw = key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+            values[name] = raw switch
+            {
+                null => new ValueSnapshot(false, null, null, (int)RegistryValueKind.Unknown),
+                int number => new ValueSnapshot(true, null, number, (int)kind),
+                string text => new ValueSnapshot(true, text, null, (int)kind),
+                _ => throw new InvalidOperationException($"Unsupported existing Windows proxy registry value type: {name}.")
+            };
+        }
+
+        SaveBackup(new ProxySnapshot(values));
+        try
+        {
+            key.SetValue("ProxyEnable", 1, RegistryValueKind.DWord);
+            key.SetValue("ProxyServer", $"http=127.0.0.1:{httpPort};https=127.0.0.1:{httpPort}", RegistryValueKind.String);
+            key.SetValue("ProxyOverride", "<local>;localhost;127.*;[::1]", RegistryValueKind.String);
+            key.DeleteValue("AutoConfigURL", throwOnMissingValue: false);
+            key.SetValue("AutoDetect", 0, RegistryValueKind.DWord);
+            RefreshWinInet();
+        }
+        catch
+        {
+            try { Restore(); } catch { }
+            throw;
+        }
+    }
+
+    public void Restore()
+    {
+        if (!File.Exists(BackupPath)) return;
+
+        var encrypted = File.ReadAllBytes(BackupPath);
+        var json = ProtectedData.Unprotect(encrypted, Entropy, DataProtectionScope.CurrentUser);
+        var snapshot = JsonSerializer.Deserialize<ProxySnapshot>(json)
+            ?? throw new InvalidDataException("The saved Windows proxy backup is invalid.");
+
+        using var key = Registry.CurrentUser.OpenSubKey(InternetSettingsPath, writable: true)
+            ?? throw new InvalidOperationException("Could not open the current user's Windows Internet Settings registry key.");
+
+        foreach (var name in ManagedValues)
+        {
+            if (!snapshot.Values.TryGetValue(name, out var value))
+                throw new InvalidDataException($"The Windows proxy backup is missing {name}.");
+            if (!value.Exists)
+            {
+                key.DeleteValue(name, throwOnMissingValue: false);
+                continue;
+            }
+
+            var kind = (RegistryValueKind)value.Kind;
+            if (value.Text is not null) key.SetValue(name, value.Text, kind);
+            else if (value.Number.HasValue) key.SetValue(name, value.Number.Value, kind);
+            else throw new InvalidDataException($"The Windows proxy backup contains an invalid value for {name}.");
+        }
+
+        RefreshWinInet();
+        CryptographicOperations.ZeroMemory(json);
+        File.Delete(BackupPath);
+    }
+
+    private static void SaveBackup(ProxySnapshot snapshot)
+    {
+        var folder = Path.GetDirectoryName(BackupPath)!;
+        Directory.CreateDirectory(folder);
+        var json = JsonSerializer.SerializeToUtf8Bytes(snapshot);
+        var encrypted = ProtectedData.Protect(json, Entropy, DataProtectionScope.CurrentUser);
+        var temp = BackupPath + ".tmp";
+        try
+        {
+            File.WriteAllBytes(temp, encrypted);
+            File.Move(temp, BackupPath, overwrite: true);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(json);
+            if (File.Exists(temp)) File.Delete(temp);
+        }
+    }
+
+    private static void RefreshWinInet()
+    {
+        const int InternetOptionSettingsChanged = 39;
+        const int InternetOptionRefresh = 37;
+        if (!InternetSetOption(IntPtr.Zero, InternetOptionSettingsChanged, IntPtr.Zero, 0))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows did not accept the proxy settings change.");
+        if (!InternetSetOption(IntPtr.Zero, InternetOptionRefresh, IntPtr.Zero, 0))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows could not refresh the proxy settings.");
+    }
+
+    [DllImport("wininet.dll", SetLastError = true)]
+    private static extern bool InternetSetOption(IntPtr hInternet, int dwOption, IntPtr lpBuffer, int dwBufferLength);
+}
