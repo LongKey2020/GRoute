@@ -46,6 +46,7 @@ public static class XrayTunConfigBuilder
             inbounds.Insert(0, tun);
         }
 
+        var previousTunTag = tun["tag"]?.GetValue<string>();
         const string tunTag = "lroute-tun-in";
         tun["tag"] = tunTag;
         tun["port"] = 0;
@@ -76,30 +77,40 @@ public static class XrayTunConfigBuilder
             routing["rules"] = rules;
         }
 
-        for (var i = rules.Count - 1; i >= 0; i--)
+        if (!string.IsNullOrWhiteSpace(previousTunTag) && previousTunTag != tunTag)
         {
-            if (rules[i] is JsonObject rule &&
-                rule["inboundTag"] is JsonArray tags &&
-                tags.Any(tag => string.Equals(tag?.GetValue<string>(), tunTag, StringComparison.Ordinal)))
+            foreach (var rule in rules.OfType<JsonObject>())
             {
-                rules.RemoveAt(i);
+                if (rule["inboundTag"] is not JsonArray tags) continue;
+                for (var i = 0; i < tags.Count; i++)
+                {
+                    if (string.Equals(tags[i]?.GetValue<string>(), previousTunTag, StringComparison.Ordinal))
+                        tags[i] = tunTag;
+                }
             }
         }
 
-        rules.Insert(0, new JsonObject
+        var hasDefaultTunRoute = rules.OfType<JsonObject>().Any(rule =>
+            rule["inboundTag"] is JsonArray tags &&
+            tags.Any(tag => string.Equals(tag?.GetValue<string>(), tunTag, StringComparison.Ordinal)) &&
+            string.Equals(rule["outboundTag"]?.GetValue<string>(), proxyTag, StringComparison.Ordinal));
+
+        if (!hasDefaultTunRoute)
         {
-            ["type"] = "field",
-            ["inboundTag"] = new JsonArray(tunTag),
-            ["outboundTag"] = proxyTag
-        });
+            rules.Add(new JsonObject
+            {
+                ["type"] = "field",
+                ["inboundTag"] = new JsonArray(tunTag),
+                ["outboundTag"] = proxyTag
+            });
+        }
 
         Directory.CreateDirectory(runtimeDirectory);
         var runtimePath = Path.Combine(runtimeDirectory, $"xray-tun-{Guid.NewGuid():N}.json");
-        root["log"] = new JsonObject
-        {
-            ["loglevel"] = "warning",
-            ["error"] = runtimePath + ".error.log"
-        };
+        var log = root["log"] as JsonObject ?? new JsonObject();
+        if (log["loglevel"] is null) log["loglevel"] = "warning";
+        log["error"] = runtimePath + ".error.log";
+        root["log"] = log;
         await File.WriteAllTextAsync(runtimePath, root.ToJsonString(new System.Text.Json.JsonSerializerOptions
         {
             WriteIndented = true
