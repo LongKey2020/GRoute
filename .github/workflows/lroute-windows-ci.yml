@@ -26,4 +26,4 @@ jobs:
         with:
           dotnet-version: "8.0.x"
       - name: Build Windows application
-        run: dotnet build windows/LRoute.Windows.sln -c Release
+        run: dotnet build windows/LRoute.Windows.sln -c Release -p:Platform=x64
