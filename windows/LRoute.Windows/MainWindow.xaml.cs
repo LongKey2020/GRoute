@@ -85,7 +85,7 @@ public partial class MainWindow : Window
                     throw new NotSupportedException(
                         "This profile format is not enabled yet. Standard WireGuard is supported first; AmneziaWG and Xray adapters are next.");
 
-                ConnectionMessage.Text = "Connecting… starting tunnel service with current Windows permissions.";
+                ConnectionMessage.Text = "Connecting… approve the Windows administrator prompt.";
                 await _wireGuard.ConnectAsync(selected);
                 _activeProfile = selected;
                 _isConnected = true;
