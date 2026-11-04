@@ -159,7 +159,7 @@ public partial class MainWindow : Window
     private void RemoveProfile_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is not ProfileItem profile) return;
-        if (ReferenceEquals(profile, _activeProfile))
+        if (ReferenceEquals(profile, _activeProfile) || ReferenceEquals(profile, _activeWireGuardProfile))
         {
             MessageBox.Show(this, "Disconnect this profile before removing it.", "LRoute",
                 MessageBoxButton.OK, MessageBoxImage.Information);
