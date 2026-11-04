@@ -14,7 +14,7 @@ Windows desktop implementation of LRoute. This project is isolated under `window
 - Standard WireGuard `.conf` files are passed directly to the official tunnel-service CLI; LRoute does not generate its own `.conf.dpapi` blobs.
 - The runtime copy is stored under the current user's LocalAppData and the directory/file ACLs are restricted to the current user, Local System, and Administrators before the tunnel starts.
 - Standard WireGuard profiles connect through the official WireGuard tunnel service with a UAC prompt and service-state verification.
-- Xray JSON profiles are validated and start the bundled Xray-core process in local proxy mode; this is not yet a device-wide TUN VPN.
+- Xray JSON profiles are validated and can start in local proxy mode or optional system-wide TUN mode.\n- System-wide TUN mode creates a Wintun adapter, applies IPv4 default routing, assigns DNS servers, uses Xray outbound-interface binding to avoid routing loops, and enables Windows DNS / misconfigured-IP leak protection. It requests UAC elevation.\n- TUN mode uses a temporary runtime copy of the imported JSON; the original profile file is not modified. Runtime config and error logs are removed when the engine disconnects.\n- The Windows Xray bundle must include the official `wintun.dll` alongside `xray.exe`; CI verifies both files are present.
 - AmneziaWG profiles are detected and listed but remain disabled until a compatible native engine is integrated.
 
 ## WireGuard prerequisite
@@ -29,4 +29,4 @@ Open `LRoute.Windows.sln` in Visual Studio 2022 with the .NET desktop developmen
 dotnet build .\LRoute.Windows.sln -c Release
 ```
 
-The application must not show Connected for WireGuard unless the WireGuard tunnel service reports the Running state. Xray process startup is reported separately as engine-running/local-proxy mode, not as a device-wide VPN connection. Device-level tunnel, DNS, routing, and handshake tests are still required.
+The application must not show Connected for WireGuard unless the WireGuard tunnel service reports the Running state. Xray local proxy mode is reported separately from TUN mode. TUN mode is only reported as engine-running until real device traffic, DNS, route restoration, and adapter cleanup are tested on Windows. IPv4 is routed through the TUN; IPv6 is blocked by the Windows leak guard when not routed by this profile. Device-level tunnel, DNS, routing, and handshake tests are still required.
