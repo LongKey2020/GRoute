@@ -15,7 +15,7 @@ permissions:
   contents: read
 concurrency:
   group: lroute-windows-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: windows-latest
