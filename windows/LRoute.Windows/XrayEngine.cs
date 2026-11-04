@@ -46,14 +46,19 @@ public sealed class XrayEngine : IDisposable
         if (tunMode && !File.Exists(Path.Combine(Path.GetDirectoryName(executable)!, "wintun.dll")))
             throw new FileNotFoundException("Wintun runtime is missing. The Windows Xray package must include wintun.dll.");
 
+        string? staleRuntimeConfig;
         lock (_sync)
         {
             if (_process is { HasExited: false })
                 throw new InvalidOperationException("Xray-core is already running.");
             _process?.Dispose();
             _process = null;
+            staleRuntimeConfig = _runtimeConfigPath;
+            _runtimeConfigPath = null;
+            _tunMode = false;
             _log.Clear();
         }
+        if (staleRuntimeConfig is not null) TryDeleteRuntimeFiles(staleRuntimeConfig);
 
         var runtimeConfigPath = configPath;
         if (tunMode)
@@ -99,6 +104,7 @@ public sealed class XrayEngine : IDisposable
         }
 
         var process = new Process { StartInfo = start, EnableRaisingEvents = true };
+        var processStarted = false;
         if (!tunMode)
         {
             process.OutputDataReceived += (_, e) => AppendLog(e.Data);
@@ -120,6 +126,7 @@ public sealed class XrayEngine : IDisposable
         {
             if (!process.Start())
                 throw new InvalidOperationException("Windows could not start the Xray-core process.");
+            processStarted = true;
 
             if (!tunMode)
             {
@@ -159,7 +166,7 @@ public sealed class XrayEngine : IDisposable
                 _runtimeConfigPath = null;
                 _tunMode = false;
             }
-            if (!process.HasExited)
+            if (processStarted && !process.HasExited)
             {
                 try { process.Kill(entireProcessTree: true); } catch { }
             }
