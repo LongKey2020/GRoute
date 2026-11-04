@@ -143,7 +143,12 @@ public partial class MainWindow : Window
             var saved = JsonSerializer.Deserialize<List<ProfileItem>>(File.ReadAllText(ProfileIndexPath));
             if (saved is null) return;
             foreach (var item in saved.Where(p => File.Exists(p.FilePath)))
-                _profiles.Add(item.EnsureTunnelName());
+            {
+                var normalized = item.Type == "Xray JSON (engine pending)"
+                    ? item with { Type = "Xray JSON" }
+                    : item;
+                _profiles.Add(normalized.EnsureTunnelName());
+            }
         }
         catch (Exception ex)
         {
