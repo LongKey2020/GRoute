@@ -70,9 +70,10 @@ public sealed class XrayEngine : IDisposable
         {
             var details = GetRecentLog();
             lock (_sync) { if (ReferenceEquals(_process, process)) _process = null; }
+            var exitCode = process.ExitCode;
             process.Dispose();
             throw new InvalidOperationException(
-                $"Xray-core exited during startup (exit code {process.ExitCode}).{Environment.NewLine}{details}");
+                $"Xray-core exited during startup (exit code {exitCode}).{Environment.NewLine}{details}");
         }
     }
 
