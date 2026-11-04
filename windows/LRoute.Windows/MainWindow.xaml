@@ -72,7 +72,7 @@
          <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10">
           <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
            <StackPanel><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="{Binding Type}" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,4,0,0"/></StackPanel>
-           <TextBlock Grid.Column="1" Text="IMPORTED" Foreground="{StaticResource MutedBrush}" FontSize="10" VerticalAlignment="Center"/>
+           <Button Grid.Column="1" Content="REMOVE" Tag="{Binding}" Click="RemoveProfile_Click" Background="Transparent" Foreground="{StaticResource MutedBrush}" BorderBrush="{StaticResource BorderBrush}" Padding="10,5" FontSize="10"/>
           </Grid>
          </Border>
         </DataTemplate>
