@@ -12,11 +12,17 @@ public static class RuntimeProfileBuilder
         if (!string.IsNullOrWhiteSpace(profile.RawJson)) return profile.RawJson;
         var stream = new JsonObject { ["network"] = profile.Network };
         if (profile.Security == "tls")
+        {
+            stream["security"] = "tls";
             stream["tlsSettings"] = new JsonObject { ["serverName"] = string.IsNullOrWhiteSpace(profile.Sni) ? profile.Server : profile.Sni,
                 ["fingerprint"] = profile.Fingerprint, ["alpn"] = new JsonArray(profile.Alpn.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()) };
+        }
         if (profile.Security == "reality")
+        {
+            stream["security"] = "reality";
             stream["realitySettings"] = new JsonObject { ["serverName"] = profile.Sni, ["fingerprint"] = profile.Fingerprint,
                 ["publicKey"] = profile.PublicKey, ["shortId"] = profile.ShortId };
+        }
         if (profile.Network == "ws") stream["wsSettings"] = new JsonObject { ["path"] = profile.Path, ["headers"] = new JsonObject { ["Host"] = profile.Host } };
         if (profile.Network == "grpc") stream["grpcSettings"] = new JsonObject { ["serviceName"] = profile.Path, ["authority"] = profile.Host };
         if (profile.Network == "httpupgrade") stream["httpupgradeSettings"] = new JsonObject { ["path"] = profile.Path, ["host"] = profile.Host };
