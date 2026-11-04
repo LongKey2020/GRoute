@@ -12,7 +12,6 @@
    <Setter Property="FontSize" Value="13"/>
   </Style>
  </Window.Resources>
-</Window>
  <Grid>
   <Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
   <Border Grid.Column="0" Background="#0D0D0D" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
