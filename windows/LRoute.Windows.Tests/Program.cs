@@ -44,6 +44,8 @@ try
         Assert(profile.Protocol == expectedProtocol, expectedProtocol + " protocol mismatch.");
         if (expectedProtocol == "vmess")
             Assert(profile.AlterId == 4, "VMess AlterId must be preserved.");
+        if (expectedProtocol == "trojan")
+            Assert(profile.Password == "test-password", "Trojan URI userinfo must be mapped to the outbound password.");
 
         var config = RuntimeProfileBuilder.Build(profile);
         using var document = JsonDocument.Parse(config);
