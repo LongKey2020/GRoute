@@ -50,7 +50,19 @@ public sealed class WireGuardEngine
             if (await IsServiceRunningAsync(serviceName, cancellationToken)) return;
             await Task.Delay(500, cancellationToken);
         }
-        throw new InvalidOperationException("WireGuard did not report the tunnel service as Running within 10 seconds. Check the WireGuard log.");
+        var serviceDiagnostics = await RunAsync("sc.exe", new[] { "queryex", serviceName }, cancellationToken);
+        var wireGuardLog = await RunAsync(executable, new[] { "/dumplog" }, cancellationToken);
+        var serviceText = string.IsNullOrWhiteSpace(serviceDiagnostics.Output)
+            ? $"sc.exe queryex exit code: {serviceDiagnostics.ExitCode}"
+            : serviceDiagnostics.Output.Trim();
+        var logText = string.IsNullOrWhiteSpace(wireGuardLog.Output)
+            ? "WireGuard log output was empty."
+            : wireGuardLog.Output.Trim();
+        if (logText.Length > 3500) logText = logText[^3500..];
+        throw new InvalidOperationException(
+            $"WireGuard tunnel service did not reach RUNNING within 10 seconds. " +
+            $"Service: {serviceName}{Environment.NewLine}{serviceText}" +
+            $"{Environment.NewLine}WireGuard log:{Environment.NewLine}{logText}");
     }
 
     public async Task DisconnectAsync(ProfileItem profile, CancellationToken cancellationToken = default)
