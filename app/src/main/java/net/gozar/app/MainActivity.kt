@@ -343,8 +343,8 @@ import kotlin.math.round
 import kotlin.math.sqrt
 import kotlin.math.roundToInt
 
-private val BrandBlue = Color(0xFF3D6AD6)
-private val SplashBackground = Color(0xFF13234A)
+private val BrandBlue = Color(0xFFFFFFFF)
+private val SplashBackground = Color(0xFF000000)
 
 private val GnetLightColors = lightColorScheme(
     primary = Color(0xFF2557D6),
@@ -425,14 +425,14 @@ private val GnetDarkColors = darkColorScheme(
 )
 
 private val GnetAmoledColors = darkColorScheme(
-    primary = Color(0xFF6CA0FF),
-    onPrimary = Color(0xFF071226),
-    primaryContainer = Color(0xFF1B2944),
-    onPrimaryContainer = Color(0xFFD6E3FF),
-    secondary = Color(0xFF93A7C9),
-    onSecondary = Color(0xFF0E1626),
-    secondaryContainer = Color(0xFF11161F),
-    onSecondaryContainer = Color(0xFFD9E2F2),
+    primary = Color(0xFFFFFFFF),
+    onPrimary = Color(0xFF000000),
+    primaryContainer = Color(0xFF242424),
+    onPrimaryContainer = Color(0xFFFFFFFF),
+    secondary = Color(0xFFBDBDBD),
+    onSecondary = Color(0xFF000000),
+    secondaryContainer = Color(0xFF1A1A1A),
+    onSecondaryContainer = Color(0xFFE5E5E5),
     background = Color(0xFF000000),
     onBackground = Color(0xFFE6EAF2),
     surface = Color(0xFF000000),
@@ -446,32 +446,32 @@ private val GnetAmoledColors = darkColorScheme(
     surfaceContainer = Color(0xFF0B0E14),
     surfaceContainerHigh = Color(0xFF0F131B),
     surfaceContainerHighest = Color(0xFF12161F),
-    tertiary = Color(0xFF35E0FF),
-    onTertiary = Color(0xFF042430),
-    tertiaryContainer = Color(0xFF0A2733),
-    onTertiaryContainer = Color(0xFFC5F1FD),
-    inversePrimary = Color(0xFF2557D6),
-    surfaceTint = Color(0xFF6CA0FF),
+    tertiary = Color(0xFFE5E5E5),
+    onTertiary = Color(0xFF000000),
+    tertiaryContainer = Color(0xFF242424),
+    onTertiaryContainer = Color(0xFFFFFFFF),
+    inversePrimary = Color(0xFFBDBDBD),
+    surfaceTint = Color(0xFFFFFFFF),
     inverseSurface = Color(0xFFE6EAF2),
     inverseOnSurface = Color(0xFF0B0E14),
     error = Color(0xFFFF7A7A),
     onError = Color(0xFF2A0A0A),
     errorContainer = Color(0xFF3A1010),
     onErrorContainer = Color(0xFFFFDAD6),
-    outline = Color(0xFF2A3344),
-    outlineVariant = Color(0xFF1B2130),
+    outline = Color(0xFF555555),
+    outlineVariant = Color(0xFF292929),
     scrim = Color(0xFF000000)
 )
 
 private val AppCyan: Color
     @Composable get() =
-        if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF35E0FF)
-        else Color(0xFF0A7C99)
+        if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFFFFFFFF)
+        else Color(0xFF333333)
 
 private val AppAqua: Color
     @Composable get() =
-        if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF2AE6FF)
-        else Color(0xFF067E9B)
+        if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFFBDBDBD)
+        else Color(0xFF555555)
 
 internal val LocalLang = compositionLocalOf { Lang.EN }
 
@@ -789,12 +789,8 @@ class MainActivity : ComponentActivity() {
                     LocalLang provides lang,
                     LocalLayoutDirection provides direction
                 ) {
-                    var showWelcome by remember { mutableStateOf(true) }
-                    var startMain by remember { mutableStateOf(false) }
-                    LaunchedEffect(Unit) {
-                        delay(1100)
-                        startMain = true
-                    }
+                    var showWelcome by remember { mutableStateOf(false) }
+                    var startMain by remember { mutableStateOf(true) }
                     Box {
                         if (startMain) {
                             GozarApp(store = store, onConnect = ::connectTo, onDisconnect = ::disconnect, onSwitch = ::switchTo, onCancelPick = ::cancelPick)
