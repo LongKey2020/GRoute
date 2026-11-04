@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 
@@ -180,33 +182,89 @@ public sealed class XrayEngine : IDisposable
     {
         Process? process;
         string? runtimeConfigPath;
+        bool tunMode;
         lock (_sync)
         {
             process = _process;
-            _process = null;
             runtimeConfigPath = _runtimeConfigPath;
-            _runtimeConfigPath = null;
-            _tunMode = false;
+            tunMode = _tunMode;
         }
 
         if (process is not null)
         {
-            try
+            if (!process.HasExited)
             {
-                if (!process.HasExited)
+                if (tunMode)
+                {
+                    // Xray must receive a graceful console break so it can remove
+                    // its system routes, DNS changes, WFP filters, and Wintun device.
+                    SendConsoleBreak(process.Id);
+                    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+                    try { await process.WaitForExitAsync(timeout.Token); }
+                    catch (OperationCanceledException)
+                    {
+                        throw new InvalidOperationException(
+                            "Xray TUN did not shut down gracefully. It has been left running to avoid an unsafe forced termination; try disconnecting again.");
+                    }
+                }
+                else
                 {
                     process.Kill(entireProcessTree: true);
                     await process.WaitForExitAsync();
                 }
             }
-            finally
+
+            lock (_sync)
             {
-                process.Dispose();
+                if (ReferenceEquals(_process, process)) _process = null;
+                _runtimeConfigPath = null;
+                _tunMode = false;
+            }
+            process.Dispose();
+        }
+        else
+        {
+            lock (_sync)
+            {
+                _runtimeConfigPath = null;
+                _tunMode = false;
             }
         }
 
         if (runtimeConfigPath is not null) TryDeleteRuntimeFiles(runtimeConfigPath);
     }
+
+    private static void SendConsoleBreak(int processId)
+    {
+        if (!AttachConsole((uint)processId))
+            throw new Win32Exception(Marshal.GetLastWin32Error(),
+                "Could not attach to the Xray console to request a graceful TUN shutdown.");
+
+        try
+        {
+            SetConsoleCtrlHandler(IntPtr.Zero, true);
+            if (!GenerateConsoleCtrlEvent(1, (uint)processId))
+                throw new Win32Exception(Marshal.GetLastWin32Error(),
+                    "Could not send a graceful shutdown signal to Xray TUN.");
+        }
+        finally
+        {
+            SetConsoleCtrlHandler(IntPtr.Zero, false);
+            FreeConsole();
+        }
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(uint processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GenerateConsoleCtrlEvent(uint controlEvent, uint processGroupId);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool FreeConsole();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleCtrlHandler(IntPtr handlerRoutine, bool add);
 
     private static async Task ValidateConfigAsync(
         string executable, string configPath, CancellationToken token)
