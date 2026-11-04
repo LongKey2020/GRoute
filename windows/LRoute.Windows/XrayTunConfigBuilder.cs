@@ -26,9 +26,15 @@ public static class XrayTunConfigBuilder
                     && !string.Equals(item["tag"]?.GetValue<string>(), "direct", StringComparison.OrdinalIgnoreCase);
             });
 
-        var proxyTag = proxy?["tag"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(proxyTag))
+        if (proxy is null)
             throw new InvalidDataException("No proxy outbound was found. Add a VLESS, VMess, Trojan, or Shadowsocks outbound first.");
+
+        var proxyTag = proxy["tag"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(proxyTag))
+        {
+            proxyTag = "lroute-proxy";
+            proxy["tag"] = proxyTag;
+        }
 
         var inbounds = root["inbounds"] as JsonArray;
         if (inbounds is null)
