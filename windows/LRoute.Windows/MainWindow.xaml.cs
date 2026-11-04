@@ -170,7 +170,14 @@ public partial class MainWindow : Window
     private void ProfilesList_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshUi();
     private void Overview_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Overview"; PageSubtitle.Text = "Manage your private network connections."; }
     private void Profiles_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Profiles"; PageSubtitle.Text = "Import and manage Xray-compatible profiles."; }
-    private void Settings_Click(object sender, RoutedEventArgs e) { MessageBox.Show(this, "Settings modules are being rebuilt from the Android source.", "LRoute Settings"); }
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        MessageBox.Show(this,
+            "This Windows release currently uses the Windows Internet Settings proxy (HTTP 127.0.0.1:2081).\\n\\n" +
+            "WinINET-aware applications use LRoute. Some WinHTTP services, games and applications with their own network stack may not.\\n\\n" +
+            "Advanced DNS, split routing, kill switch and TUN controls are not included in this release candidate.",
+            "LRoute Settings", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
     private void Menu_Click(object sender, RoutedEventArgs e) { MessageBox.Show(this, "LRoute Windows • WireGuard and QR scanning are excluded.", "About LRoute"); }
 
     private void ShowImportErrors(IReadOnlyList<string> errors)
