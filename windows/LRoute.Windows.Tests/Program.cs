@@ -45,6 +45,9 @@ try
         using var document = JsonDocument.Parse(config);
         Assert(document.RootElement.GetProperty("outbounds").GetArrayLength() >= 3,
             expectedProtocol + " runtime config should include proxy/direct/block outbounds.");
+        if (expectedProtocol == "vless")
+            Assert(document.RootElement.GetProperty("outbounds")[0].GetProperty("streamSettings")
+                .GetProperty("security").GetString() == "tls", "VLESS TLS transport security must be emitted.");
 
         var configPath = Path.Combine(temp, expectedProtocol + ".json");
         await File.WriteAllTextAsync(configPath, config);
@@ -74,6 +77,19 @@ try
     Assert(wrapped.Count == 1 && wrapped[0].Protocol == "json",
         "Standalone Xray outbound should be wrapped as a complete config.");
     Console.WriteLine("PASS: standalone Xray outbound wrapping");
+
+    var mixed = ProxyLinkParser.ParseManyDetailed(cases[0].Item2 + Environment.NewLine + "unsupported://example.com");
+    Assert(mixed.Profiles.Count == 1 && mixed.Errors.Count == 1,
+        "A malformed/unsupported subscription entry must not discard valid entries.");
+    Console.WriteLine("PASS: partial subscription import diagnostics");
+
+    var unauthenticatedHttp = ProxyLinkParser.ParseMany("http://example.com:8080");
+    Assert(unauthenticatedHttp.Count == 1, "Unauthenticated HTTP proxy should parse.");
+    var httpConfig = JsonDocument.Parse(RuntimeProfileBuilder.Build(unauthenticatedHttp[0]));
+    Assert(!httpConfig.RootElement.GetProperty("outbounds")[0].GetProperty("settings")
+        .GetProperty("servers")[0].TryGetProperty("users", out _),
+        "Unauthenticated HTTP proxy must not emit an empty users array.");
+    Console.WriteLine("PASS: unauthenticated HTTP proxy config");
 }
 finally
 {
