@@ -12,7 +12,9 @@ Windows desktop implementation of LRoute. This project is isolated under `window
 - WireGuard adapter calls the official WireGuard for Windows tunnel-service CLI.
 - Connect/disconnect requests UAC elevation and checks the Windows tunnel service state.
 - Before installation, the configuration is DPAPI-protected with machine scope and placed in a dedicated ProgramData folder with restricted ACLs.
-- AmneziaWG and Xray profiles are detected/listed but remain disabled until their native engine adapters are complete.
+- Standard WireGuard profiles connect through the official WireGuard tunnel service with a UAC prompt and service-state verification.
+- Xray JSON profiles are validated and start the bundled Xray-core process in local proxy mode; this is not yet a device-wide TUN VPN.
+- AmneziaWG profiles are detected and listed but remain disabled until a compatible native engine is integrated.
 
 ## WireGuard prerequisite
 Install the official WireGuard for Windows client from https://www.wireguard.com/install/. LRoute locates `wireguard.exe` in the standard Program Files locations. Connecting creates a service named `WireGuardTunnel$LRoute-...`; disconnecting removes that tunnel service. Administrator approval is required.
@@ -26,4 +28,4 @@ Open `LRoute.Windows.sln` in Visual Studio 2022 with the .NET desktop developmen
 dotnet build .\LRoute.Windows.sln -c Release
 ```
 
-The application must not show Connected unless the WireGuard tunnel service reports the Running state. Device-level tunnel and handshake tests are still required.
+The application must not show Connected for WireGuard unless the WireGuard tunnel service reports the Running state. Xray process startup is reported separately as engine-running/local-proxy mode, not as a device-wide VPN connection. Device-level tunnel, DNS, routing, and handshake tests are still required.
