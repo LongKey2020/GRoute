@@ -126,6 +126,26 @@ try
             Array.FindIndex(rules, rule => rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "proxy"),
             "Direct bypass rules must be evaluated before the proxy catch-all.");
     }
+    var settingsConfigPath = Path.Combine(temp, "dns-split-routing.json");
+    await File.WriteAllTextAsync(settingsConfigPath, configuredJson);
+    var settingsValidation = new ProcessStartInfo(xray)
+    {
+        UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+        CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(xray)!
+    };
+    settingsValidation.ArgumentList.Add("run");
+    settingsValidation.ArgumentList.Add("-test");
+    settingsValidation.ArgumentList.Add("-config");
+    settingsValidation.ArgumentList.Add(settingsConfigPath);
+    using (var process = Process.Start(settingsValidation) ?? throw new InvalidOperationException("Could not start DNS/split-routing validator."))
+    {
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        Assert(process.ExitCode == 0, "DNS/split-routing config rejected by Xray: " + (await stdout) + Environment.NewLine + (await stderr));
+    }
+    Console.WriteLine("PASS: Xray validation of custom DNS and split-routing config");
+
     var invalidDnsRejected = false;
     try { RuntimeConfigOptions.Apply(RuntimeProfileBuilder.Build(unauthenticatedHttp[0]), "http://dns.example/query", ""); }
     catch (FormatException) { invalidDnsRejected = true; }
