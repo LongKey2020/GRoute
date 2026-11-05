@@ -45,10 +45,24 @@ public static class RuntimeConfigOptions
         {
             var outbounds = root["outbounds"] as JsonArray
                 ?? throw new InvalidDataException("Xray configuration has no outbounds array.");
+            var directTag = "direct";
+            var directNameConflict = outbounds.OfType<JsonObject>().Any(item =>
+                string.Equals(item["tag"]?.GetValue<string>(), directTag, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(item["protocol"]?.GetValue<string>(), "freedom", StringComparison.OrdinalIgnoreCase));
+            if (directNameConflict)
+            {
+                directTag = "lroute-direct";
+                var suffix = 2;
+                while (outbounds.OfType<JsonObject>().Any(item =>
+                    string.Equals(item["tag"]?.GetValue<string>(), directTag, StringComparison.OrdinalIgnoreCase)))
+                    directTag = "lroute-direct-" + suffix++;
+            }
+
             var hasDirect = outbounds.OfType<JsonObject>().Any(item =>
-                string.Equals(item["tag"]?.GetValue<string>(), "direct", StringComparison.OrdinalIgnoreCase));
+                string.Equals(item["tag"]?.GetValue<string>(), directTag, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(item["protocol"]?.GetValue<string>(), "freedom", StringComparison.OrdinalIgnoreCase));
             if (!hasDirect)
-                outbounds.Add(new JsonObject { ["tag"] = "direct", ["protocol"] = "freedom" });
+                outbounds.Add(new JsonObject { ["tag"] = directTag, ["protocol"] = "freedom" });
 
             var routing = root["routing"] as JsonObject;
             if (routing is null)
@@ -65,7 +79,7 @@ public static class RuntimeConfigOptions
             var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var rule in rules.OfType<JsonObject>())
             {
-                if (!string.Equals(rule["outboundTag"]?.GetValue<string>(), "direct", StringComparison.OrdinalIgnoreCase) ||
+                if (!string.Equals(rule["outboundTag"]?.GetValue<string>(), directTag, StringComparison.OrdinalIgnoreCase) ||
                     rule["domain"] is not JsonArray ruleDomains) continue;
                 foreach (var value in ruleDomains)
                     if (value is JsonValue jsonValue && jsonValue.TryGetValue<string>(out var text))
@@ -93,7 +107,7 @@ public static class RuntimeConfigOptions
                 {
                     ["type"] = "field",
                     ["domain"] = domainArray,
-                    ["outboundTag"] = "direct"
+                    ["outboundTag"] = directTag
                 });
             }
 
