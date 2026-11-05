@@ -99,9 +99,9 @@ public sealed class XrayEngine : IDisposable
         }
         catch
         {
-            // Runtime configs contain proxy credentials. Remove them even when
-            // validation fails; callers must not leave plaintext secrets behind.
-            TryDeleteRuntimeFiles(runtimeConfigPath);
+            // Only TUN mode creates a private runtime copy owned by this engine.
+            // In system-proxy mode runtimeConfigPath is caller-owned; never delete it.
+            if (tunMode) TryDeleteRuntimeFiles(runtimeConfigPath);
             throw;
         }
 
