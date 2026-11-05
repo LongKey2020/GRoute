@@ -102,6 +102,14 @@ try
             runtimeRules[0].GetProperty("inboundTag").GetArrayLength() == 2,
             "Local listeners must route to the selected proxy before the imported global catch-all.");
     }
+    const string importedPortConflict = """{"outbounds":[{"tag":"proxy","protocol":"freedom"}],"inbounds":[{"tag":"dns-in","listen":"127.0.0.1","port":2081,"protocol":"dokodemo-door"}]}""";
+    var conflictingProfile = ProxyLinkParser.ParseMany(importedPortConflict).Single();
+    var portConflictRejected = false;
+    try { RuntimeProfileBuilder.Build(conflictingProfile); }
+    catch (InvalidDataException) { portConflictRejected = true; }
+    Assert(portConflictRejected,
+        "Imported configurations using the system-proxy port for another protocol must fail clearly, not silently misroute.");
+
     var fullJsonPath = Path.Combine(temp, "complete-imported-config.json");
     await File.WriteAllTextAsync(fullJsonPath, fullJsonRuntime);
     using (var validator = new LRoute.Windows.XrayEngine(xray))
