@@ -121,7 +121,7 @@ public static class RuntimeProfileBuilder
             var insertAt = rules.Count;
             for (var i = 0; i < rules.Count; i++)
             {
-                if (rules[i] is not JsonObject rule || rule["outboundTag"] is null) continue;
+                if (rules[i] is not JsonObject rule || (rule["outboundTag"] is null && rule["balancerTag"] is null)) continue;
                 var hasDestinationCondition = new[]
                 {
                     "domain", "ip", "port", "source", "sourcePort",
