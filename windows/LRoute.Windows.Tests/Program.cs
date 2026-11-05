@@ -134,7 +134,16 @@ try
     try { RuntimeConfigOptions.Apply(RuntimeProfileBuilder.Build(unauthenticatedHttp[0]), "", "not a domain"); }
     catch (FormatException) { invalidDomainRejected = true; }
     Assert(invalidDomainRejected, "Invalid split-routing domains must be rejected.");
+    const string importedCatchAll = """{"outbounds":[{"tag":"proxy","protocol":"freedom"},{"tag":"direct","protocol":"freedom"}],"routing":{"rules":[{"type":"field","inboundTag":["socks-in"],"outboundTag":"proxy"}]}}""";
+    using (var importedOptions = JsonDocument.Parse(RuntimeConfigOptions.Apply(importedCatchAll, "", "example.net")))
+    {
+        var importedRules = importedOptions.RootElement.GetProperty("routing").GetProperty("rules").EnumerateArray().ToArray();
+        Assert(importedRules[0].GetProperty("outboundTag").GetString() == "direct" &&
+            importedRules[1].GetProperty("outboundTag").GetString() == "proxy",
+            "Bypass rules must precede catch-all rules even when the catch-all is scoped by inboundTag.");
+    }
     Console.WriteLine("PASS: DNS override, split-domain routing and invalid settings validation");
+    Console.WriteLine("PASS: imported Xray catch-all rule ordering");
 
     // TUN generation must write a private runtime copy and preserve the imported source.
     var tunSourcePath = Path.Combine(temp, "caller-owned-tun-source.json");
