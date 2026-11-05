@@ -433,7 +433,16 @@ try
             roundTrip[0].UserId == testProfile.UserId &&
             roundTrip[0].SubscriptionUrl == testProfile.SubscriptionUrl,
             "DPAPI profile save/load round trip must preserve credentials and subscription source metadata.");
-        Console.WriteLine("PASS: DPAPI encrypted profile storage round trip");
+        var backupPath = Path.Combine(temp, "profiles.lroute");
+        profileStore.ExportBackup(backupPath, roundTrip);
+        Assert(!Encoding.UTF8.GetString(File.ReadAllBytes(backupPath)).Contains(testProfile.Name, StringComparison.Ordinal),
+            "Exported profile backups must not contain plaintext profile names.");
+        var backupProfiles = profileStore.ImportBackup(backupPath);
+        Assert(backupProfiles.Count == 1 &&
+            backupProfiles[0].SubscriptionUrl == testProfile.SubscriptionUrl &&
+            backupProfiles[0].UserId == testProfile.UserId,
+            "Encrypted profile backup/restore must preserve profile and subscription metadata.");
+        Console.WriteLine("PASS: DPAPI encrypted profile backup and restore");
 
         File.Delete(encryptedProfilesPath);
         var legacyProfile = testProfile with { Name = "legacy-migration-test" };
