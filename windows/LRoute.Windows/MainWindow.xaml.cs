@@ -25,7 +25,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _engine.ProcessExited += Engine_ProcessExited;
-        try { _systemProxy.RecoverPreviousSession(); }
+        try { ShowProxyRestoreConflicts(_systemProxy.RecoverPreviousSession()); }
         catch (Exception ex)
         {
             MessageBox.Show(this,
@@ -114,7 +114,7 @@ public partial class MainWindow : Window
             try
             {
                 await _engine.DisconnectAsync();
-                _systemProxy.Restore();
+                RestoreSystemProxyWithWarning();
                 _active = null;
             }
             catch (Exception ex) { MessageBox.Show(this, ex.Message, "Disconnect failed", MessageBoxButton.OK, MessageBoxImage.Error); }
@@ -148,7 +148,7 @@ public partial class MainWindow : Window
     {
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            try { _systemProxy.Restore(); }
+            try { RestoreSystemProxyWithWarning(); }
             catch (Exception ex)
             {
                 MessageBox.Show(this,
@@ -179,6 +179,21 @@ public partial class MainWindow : Window
             "LRoute Settings", MessageBoxButton.OK, MessageBoxImage.Information);
     }
     private void Menu_Click(object sender, RoutedEventArgs e) { MessageBox.Show(this, "LRoute Windows • WireGuard and QR scanning are excluded.", "About LRoute"); }
+
+    private void RestoreSystemProxyWithWarning()
+    {
+        ShowProxyRestoreConflicts(_systemProxy.Restore());
+    }
+
+    private void ShowProxyRestoreConflicts(IReadOnlyList<string> conflicts)
+    {
+        if (conflicts.Count == 0) return;
+        MessageBox.Show(this,
+            "LRoute restored the proxy settings it still owned, but left these settings unchanged because another application or user changed them while LRoute was connected: " +
+            string.Join(", ", conflicts) +
+            ". Review Windows Settings > Network & Internet > Proxy.",
+            "Proxy settings changed externally", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
 
     private void ShowImportErrors(IReadOnlyList<string> errors)
     {
@@ -240,7 +255,7 @@ public partial class MainWindow : Window
             try
             {
                 if (_engine.IsRunning) await _engine.DisconnectAsync();
-                _systemProxy.Restore();
+                RestoreSystemProxyWithWarning();
                 _allowClose = true;
                 Close();
             }
