@@ -15,6 +15,10 @@ public sealed record LRouteUserSettings
     public bool UseTunMode { get; init; }
     public string DnsServers { get; init; } = "";
     public string BypassDomains { get; init; } = "";
+    public string Theme { get; init; } = "Dark";
+    public string Language { get; init; } = "English";
+    public bool AutoRefreshSubscriptions { get; init; }
+    public int SubscriptionRefreshMinutes { get; init; } = 60;
 
     public static LRouteUserSettings Load()
     {
