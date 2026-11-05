@@ -11,7 +11,8 @@ public static class RuntimeConfigOptions
     public static string Apply(
         string sourceJson,
         string? dnsServers,
-        string? bypassDomains)
+        string? bypassDomains,
+        string? blockedDomains = null)
     {
         var root = JsonNode.Parse(sourceJson) as JsonObject
             ?? throw new InvalidDataException("Xray configuration must be a JSON object.");
@@ -118,6 +119,58 @@ public static class RuntimeConfigOptions
                 });
             }
 
+        }
+
+
+        // Domain blocking is applied before bypass and catch-all rules so a domain
+        // cannot escape the block list through a later direct/proxy rule.
+        var blocked = SplitValues(blockedDomains)
+            .Select(NormalizeDomain)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (blocked.Length > 0)
+        {
+            var outbounds = root["outbounds"] as JsonArray
+                ?? throw new InvalidDataException("Xray configuration has no outbounds array.");
+            var blockTag = outbounds.OfType<JsonObject>().FirstOrDefault(item =>
+                string.Equals(item["protocol"]?.GetValue<string>(), "blackhole", StringComparison.OrdinalIgnoreCase))
+                ?["tag"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(blockTag))
+            {
+                blockTag = "lroute-block";
+                var suffix = 2;
+                while (outbounds.OfType<JsonObject>().Any(item =>
+                    string.Equals(item["tag"]?.GetValue<string>(), blockTag, StringComparison.OrdinalIgnoreCase)))
+                    blockTag = "lroute-block-" + suffix++;
+                outbounds.Add(new JsonObject { ["tag"] = blockTag, ["protocol"] = "blackhole" });
+            }
+
+            if (root["routing"] is not JsonObject routing)
+                throw new InvalidDataException("Xray routing configuration must be an object when domain blocking is enabled.");
+            if (routing["rules"] is not JsonArray rules)
+                throw new InvalidDataException("Xray routing rules must be an array when domain blocking is enabled.");
+
+            var existingBlocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var rule in rules.OfType<JsonObject>())
+            {
+                if (!string.Equals(rule["outboundTag"]?.GetValue<string>(), blockTag, StringComparison.OrdinalIgnoreCase) ||
+                    rule["domain"] is not JsonArray ruleDomains) continue;
+                foreach (var value in ruleDomains)
+                    if (value is JsonValue jsonValue && jsonValue.TryGetValue<string>(out var text))
+                        existingBlocked.Add(text.StartsWith("domain:", StringComparison.OrdinalIgnoreCase) ? text[7..] : text);
+            }
+
+            var missingBlocked = blocked.Where(domain => !existingBlocked.Contains(domain)).ToArray();
+            if (missingBlocked.Length > 0)
+            {
+                rules.Insert(0, new JsonObject
+                {
+                    ["type"] = "field",
+                    ["domain"] = new JsonArray(missingBlocked.Select(domain =>
+                        (JsonNode?)JsonValue.Create("domain:" + domain)).ToArray()),
+                    ["outboundTag"] = blockTag
+                });
+            }
         }
 
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
