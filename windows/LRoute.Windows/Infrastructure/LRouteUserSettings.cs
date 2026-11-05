@@ -13,7 +13,7 @@ public sealed record LRouteUserSettings
         "LRoute", "settings.json");
 
     public bool UseTunMode { get; init; }
-    public string DnsServers { get; init; } = "1.1.1.1, 8.8.8.8";
+    public string DnsServers { get; init; } = "";
     public string BypassDomains { get; init; } = "";
 
     public static LRouteUserSettings Load()
