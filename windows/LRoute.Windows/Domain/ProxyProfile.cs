@@ -61,4 +61,13 @@ public sealed record ProxyProfile
             ? "Imported Xray configuration"
             : "No endpoint";
     public string ProtocolLabel => Protocol.ToUpperInvariant();
+    public string GroupName
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(SubscriptionUrl)) return "Imported servers";
+            try { return new Uri(SubscriptionUrl).Host; }
+            catch { return "Subscription servers"; }
+        }
+    }
 }
