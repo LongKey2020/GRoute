@@ -49,7 +49,11 @@ public static class ProxyLinkParser
                 var profile = ParseLink(line);
                 if (profile is not null) profiles.Add(profile);
                 else if (line.Contains("://", StringComparison.Ordinal))
-                    errors.Add($"Line {index + 1}: unsupported or invalid protocol.");
+                {
+                    var separator = line.IndexOf("://", StringComparison.Ordinal);
+                    var scheme = separator > 0 ? line[..separator].ToLowerInvariant() : "unknown";
+                    errors.Add($"Line {index + 1}: unsupported protocol '{scheme}' or invalid link format.");
+                }
             }
             catch (Exception ex) when (ex is FormatException or JsonException or ArgumentException or OverflowException)
             {
