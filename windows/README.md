@@ -12,7 +12,9 @@ A clean Windows x64 rewrite of LRoute. The Android application remains the featu
 - DPAPI-protected profile storage under `%LOCALAPPDATA%\LRoute\profiles.dat`, plus encrypted profile backup/restore files that are bound to the current Windows user.
 - Xray configuration validation before engine startup and a non-connecting “Validate selected” profile diagnostic.
 - Windows Internet Settings proxy integration: WinINET-aware apps are directed to the local HTTP proxy; previous manual proxy/PAC settings are backed up with DPAPI and restored on disconnect, app close, or next launch after an unclean exit.
-- Connection settings for custom DNS resolvers (IP or HTTPS DNS endpoints) and domain-based direct bypass rules.
+- Connection settings for custom DNS resolvers (IP or HTTPS DNS endpoints), domain-based direct bypass rules, and an optional Xray blackhole domain blocklist for ad/tracker hostnames.
+- Settings diagnostics: HTTPS Network Radar, DNS + TCP/443 host check, connection quality test and ICMP-based Smart Connect selection.
+- Configurable scheduled subscription refresh while disconnected; the timer pauses while a VPN session is active.
 - Persistent non-secret connection preferences under `%LOCALAPPDATA%\LRoute\settings.json`.
 - Experimental opt-in TUN mode using the bundled Wintun runtime and administrator elevation; it is not a production-validated replacement for system proxy mode.
 - Runtime config cleanup after Xray stops.
@@ -23,7 +25,8 @@ A clean Windows x64 rewrite of LRoute. The Android application remains the featu
 - Hysteria2, IKEv2 and other protocols requiring a separate runtime are not supported by this Xray-only build.
 - TUN mode is exposed as experimental opt-in only. CI validates generated TUN JSON with Xray, but route installation, DNS behavior, disconnect cleanup and leak protection have not been validated on physical Windows systems. Do not treat it as production-ready.
 - Windows System Proxy applies to WinINET-aware applications. It does not guarantee that WinHTTP services, every game, or applications with their own proxy/network stack will use LRoute.
-- Advanced DNS policies (fake DNS, encrypted DNS policy, ad-block lists), geo-based split routing, kill switch, per-app routing, SSH/SFTP, speed/stability tests, Warp/Tor/Windscribe/Aether integrations and the remaining Android tools are not yet ported. Network Test currently provides ICMP Ping to the selected or active profile server; it does not measure tunneled latency. The current DNS setting replaces Xray DNS servers; current split routing supports user-entered domain bypass only.
+- DNS-based blocklist filtering uses Xray domain routing to a blackhole outbound. It is a basic host blocklist, not a full browser cosmetic filter or a frequently updated EasyList-compatible engine. Domain matches depend on domain visibility and do not block every ad delivery method.
+- Kill switch, per-app routing, SSH/SFTP, geo-based split routing, Warp/Tor/Windscribe/Aether integrations and remaining Android tools are not yet ported. Network Test currently provides ICMP Ping to the selected or active profile server; it does not measure tunneled latency. Smart Connect selects the lowest-ICMP-latency server that responds; it does not verify application-layer VPN throughput.
 - Advanced Shadowsocks SIP002 plugins and uncommon subscription encodings still need compatibility testing.
 
 ## Build locally
@@ -46,4 +49,4 @@ CI does **not** prove successful connectivity to a real proxy server, Windows pr
 
 ### Subscription usage and expiry
 
-When a subscription is refreshed, LRoute reads the optional `subscription-userinfo` response header and stores upload, download, total quota, and Unix expiry values with the subscription profiles. The profile list displays used/total data and expiry. If the provider omits this header, existing metadata is retained; a missing value is not treated as zero quota. Background/scheduled refresh is not yet implemented.
+When a subscription is refreshed, LRoute reads the optional `subscription-userinfo` response header and stores upload, download, total quota, and Unix expiry values with the subscription profiles. The profile list displays used/total data and expiry. If the provider omits this header, existing metadata is retained; a missing value is not treated as zero quota. Scheduled refresh can be enabled in Settings > Preferences. It runs only while disconnected; failed providers are retried at the next interval. Live per-adapter traffic history is not yet implemented.
