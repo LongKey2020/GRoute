@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Windows.Data;
 using System.IO;
 using System.Net.NetworkInformation;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -671,9 +672,11 @@ public partial class MainWindow : Window
         hosts.AcceptsReturn = true; hosts.TextWrapping = TextWrapping.Wrap; hosts.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
         radarBody.Children.Add(hosts);
         var radarResult = new TextBlock { Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,8,0,0) };
-        var radarButton = Action("Run network radar", async (_, _) =>
+        var radarButton = new Button { Content = "Run network radar", Height = 38, Margin = new Thickness(0,8,8,0), Background = new SolidColorBrush(Color.FromRgb(35,35,35)), BorderBrush = lineBrush };
+        radarButton.Click += async (_, _) =>
         {
-            radarButtonEnabled(false);
+            radarButton.IsEnabled = false;
+            radarButton.Content = "Checking...";
             try
             {
                 using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
@@ -687,9 +690,8 @@ public partial class MainWindow : Window
                 }
                 radarResult.Text = string.Join(Environment.NewLine, output);
             }
-            finally { radarButtonEnabled(true); }
-        });
-        void radarButtonEnabled(bool enabled) { radarButton.IsEnabled = enabled; radarButton.Content = enabled ? "Run network radar" : "Checking..."; }
+            finally { radarButton.IsEnabled = true; radarButton.Content = "Run network radar"; }
+        };
         radarBody.Children.Add(radarButton); radarBody.Children.Add(radarResult);
 
         // TOOLS
