@@ -134,6 +134,11 @@ try
     try { RuntimeConfigOptions.Apply(RuntimeProfileBuilder.Build(unauthenticatedHttp[0]), "", "not a domain"); }
     catch (FormatException) { invalidDomainRejected = true; }
     Assert(invalidDomainRejected, "Invalid split-routing domains must be rejected.");
+    const string importedDns = """{"dns":{"servers":["9.9.9.9"]},"outbounds":[{"tag":"proxy","protocol":"freedom"}]}""";
+    using (var inheritedDns = JsonDocument.Parse(RuntimeConfigOptions.Apply(importedDns, "", "")))
+        Assert(inheritedDns.RootElement.GetProperty("dns").GetProperty("servers")[0].GetString() == "9.9.9.9",
+            "Blank DNS preferences must preserve the imported profile's DNS settings.");
+
     const string importedCatchAll = """{"outbounds":[{"tag":"proxy","protocol":"freedom"},{"tag":"direct","protocol":"freedom"}],"routing":{"rules":[{"type":"field","inboundTag":["socks-in"],"outboundTag":"proxy"}]}}""";
     using (var importedOptions = JsonDocument.Parse(RuntimeConfigOptions.Apply(importedCatchAll, "", "example.net")))
     {
