@@ -443,7 +443,10 @@ try
             SubscriptionTotalBytes = 10240, SubscriptionExpiresAt = 2000000000,
             SubscriptionLastUpdated = 1760000000000
         };
-        Assert(testProfile.SubscriptionUsedBytes == 3072 &&
+        Assert(testProfile.GroupName == "Imported servers", "Profiles without a subscription URL must be grouped as imported servers.");
+    var groupedProfile = testProfile with { SubscriptionUrl = "https://sub.example.net/list" };
+    Assert(groupedProfile.GroupName == "sub.example.net", "Subscription profiles must be grouped by subscription host.");
+    Assert(testProfile.SubscriptionUsedBytes == 3072 &&
             testProfile.SubscriptionUsageLabel.Contains("3 KB") &&
             testProfile.SubscriptionExpiryLabel.StartsWith("Expires ") &&
             testProfile.SubscriptionUpdatedLabel != "Not refreshed",
