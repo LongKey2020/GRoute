@@ -430,7 +430,7 @@ public partial class MainWindow : Window
 
             Directory.CreateDirectory(RuntimeDirectory);
             var config = RuntimeConfigOptions.Apply(
-                RuntimeProfileBuilder.Build(profile), _settings.DnsServers, _settings.BypassDomains);
+                RuntimeProfileBuilder.Build(profile), _settings.DnsServers, _settings.BypassDomains, _settings.AdBlockEnabled ? _settings.BlockedDomains : "");
             sourcePath = Path.Combine(RuntimeDirectory, $"validate-source-{Guid.NewGuid():N}.json");
             await File.WriteAllTextAsync(sourcePath, config);
             validationPath = _settings.UseTunMode
