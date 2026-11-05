@@ -65,7 +65,7 @@ public static class RuntimeProfileBuilder
                 new JsonObject { ["tag"] = "http-in", ["listen"] = "127.0.0.1", ["port"] = localHttpPort, ["protocol"] = "http", ["settings"] = new JsonObject() }),
             ["outbounds"] = new JsonArray(outbound, new JsonObject { ["tag"] = "direct", ["protocol"] = "freedom" },
                 new JsonObject { ["tag"] = "block", ["protocol"] = "blackhole" }),
-            ["routing"] = new JsonObject { ["domainStrategy"] = "AsIs", ["rules"] = new JsonArray() }
+            ["routing"] = new JsonObject { ["domainStrategy"] = "AsIs", ["rules"] = new JsonArray(new JsonObject { ["type"] = "field", ["inboundTag"] = new JsonArray("socks-in", "http-in"), ["outboundTag"] = "proxy" }) }
         };
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
