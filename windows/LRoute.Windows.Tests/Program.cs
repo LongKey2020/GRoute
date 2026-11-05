@@ -143,7 +143,18 @@ try
             "Bypass rules must precede catch-all rules even when the catch-all is scoped by inboundTag.");
     }
     Console.WriteLine("PASS: DNS override, split-domain routing and invalid settings validation");
-    Console.WriteLine("PASS: imported Xray catch-all rule ordering");
+    const string directTagConflict = """{"outbounds":[{"tag":"proxy","protocol":"freedom"},{"tag":"direct","protocol":"blackhole"}],"routing":{"rules":[]}}""";
+    using (var conflictOptions = JsonDocument.Parse(RuntimeConfigOptions.Apply(directTagConflict, "", "example.org")))
+    {
+        var conflictOutbounds = conflictOptions.RootElement.GetProperty("outbounds").EnumerateArray().ToArray();
+        Assert(conflictOutbounds.Any(item => item.TryGetProperty("tag", out var tag) &&
+            tag.GetString() == "lroute-direct" && item.GetProperty("protocol").GetString() == "freedom"),
+            "A non-direct outbound already named direct must not be reused for bypass traffic.");
+        Assert(conflictOptions.RootElement.GetProperty("routing").GetProperty("rules")[0]
+            .GetProperty("outboundTag").GetString() == "lroute-direct",
+            "Bypass rule must target the newly allocated safe direct outbound.");
+    }
+    Console.WriteLine("PASS: imported Xray catch-all rule ordering and direct-tag conflict safety");
 
     // TUN generation must write a private runtime copy and preserve the imported source.
     var tunSourcePath = Path.Combine(temp, "caller-owned-tun-source.json");
