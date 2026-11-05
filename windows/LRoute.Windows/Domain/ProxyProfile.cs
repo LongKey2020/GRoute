@@ -23,6 +23,30 @@ public sealed record ProxyProfile
     public string Alpn { get; init; } = "";
     public string SourceUri { get; init; } = "";
     public string SubscriptionUrl { get; init; } = "";
+    public long SubscriptionUploadBytes { get; init; }
+    public long SubscriptionDownloadBytes { get; init; }
+    public long SubscriptionTotalBytes { get; init; }
+    public long SubscriptionExpiresAt { get; init; }
+    public long SubscriptionLastUpdated { get; init; }
+    public long SubscriptionUsedBytes => SubscriptionUploadBytes + SubscriptionDownloadBytes;
+    public string SubscriptionUsageLabel => SubscriptionTotalBytes > 0
+        ? $"{FormatBytes(SubscriptionUsedBytes)} / {FormatBytes(SubscriptionTotalBytes)}"
+        : SubscriptionUsedBytes > 0 ? $"{FormatBytes(SubscriptionUsedBytes)} used" : "Usage unavailable";
+    public string SubscriptionExpiryLabel => SubscriptionExpiresAt > 0
+        ? DateTimeOffset.FromUnixTimeSeconds(SubscriptionExpiresAt).ToLocalTime().ToString("yyyy-MM-dd")
+        : "Expiry unavailable";
+    public string SubscriptionUpdatedLabel => SubscriptionLastUpdated > 0
+        ? DateTimeOffset.FromUnixTimeMilliseconds(SubscriptionLastUpdated).ToLocalTime().ToString("g")
+        : "Not refreshed";
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 0) return "Unknown";
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
+        return $"{value:0.##} {units[unit]}";
+    }
     public string RawJson { get; init; } = "";
     public DateTimeOffset AddedAt { get; init; } = DateTimeOffset.UtcNow;
     public string DisplayEndpoint => !string.IsNullOrWhiteSpace(Server)
