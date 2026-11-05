@@ -484,7 +484,7 @@ public partial class MainWindow : Window
         if (sender is not Button button || button.Tag is not ProxyProfile profile) return;
         var menu = new ContextMenu();
         void Add(string name, Action action) { var item = new MenuItem { Header=name }; item.Click += (_,_)=>action(); menu.Items.Add(item); }
-        Add("Select / Connect",()=>{ ProfilesList.SelectedItem=profile; if(!_engine.IsRunning) Connect_Click(this,new RoutedEventArgs()); });
+        Add("Select profile",()=>{ ProfilesList.SelectedItem=profile; });
         Add("Ping server",()=>_ = PingProfileAsync(profile));
         Add("Edit profile",()=>EditProfile(profile));
         Add("Copy share link",()=>CopyProfile(profile));
