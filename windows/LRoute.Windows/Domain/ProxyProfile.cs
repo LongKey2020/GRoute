@@ -32,9 +32,15 @@ public sealed record ProxyProfile
     public string SubscriptionUsageLabel => SubscriptionTotalBytes > 0
         ? $"{FormatBytes(SubscriptionUsedBytes)} / {FormatBytes(SubscriptionTotalBytes)}"
         : SubscriptionUsedBytes > 0 ? $"{FormatBytes(SubscriptionUsedBytes)} used" : "Usage unavailable";
-    public string SubscriptionExpiryLabel => SubscriptionExpiresAt > 0
-        ? "Expires " + DateTimeOffset.FromUnixTimeSeconds(SubscriptionExpiresAt).ToLocalTime().ToString("yyyy-MM-dd")
-        : "Expiry unavailable";
+    public string SubscriptionExpiryLabel
+    {
+        get
+        {
+            if (SubscriptionExpiresAt <= 0) return "Expiry unavailable";
+            try { return "Expires " + DateTimeOffset.FromUnixTimeSeconds(SubscriptionExpiresAt).ToLocalTime().ToString("yyyy-MM-dd"); }
+            catch (ArgumentOutOfRangeException) { return "Expiry value invalid"; }
+        }
+    }
     public string SubscriptionUpdatedLabel => SubscriptionLastUpdated > 0
         ? DateTimeOffset.FromUnixTimeMilliseconds(SubscriptionLastUpdated).ToLocalTime().ToString("g")
         : "Not refreshed";
