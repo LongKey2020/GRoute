@@ -126,6 +126,13 @@ try
     Assert(missingEndpointPort.Profiles.Count == 0 && missingEndpointPort.Errors.Count == 1,
         "Share links without a valid endpoint port must be rejected with an import diagnostic.");
 
+    var encodedShadowsocks = ProxyLinkParser.ParseMany(
+        "ss://aes-128-gcm%3Aencoded-password@example.com:8388#encoded-ss");
+    Assert(encodedShadowsocks.Count == 1 &&
+        encodedShadowsocks[0].Method == "aes-128-gcm" &&
+        encodedShadowsocks[0].Password == "encoded-password",
+        "SIP002 percent-encoded Shadowsocks credentials must be decoded correctly.");
+
     var trojanDefaultTls = ProxyLinkParser.ParseMany("trojan://test-password@example.com:443#trojan-default-tls");
     Assert(trojanDefaultTls.Count == 1 && trojanDefaultTls[0].Security == "tls",
         "Trojan links without an explicit security query must default to TLS.");
