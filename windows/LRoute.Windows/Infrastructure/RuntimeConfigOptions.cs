@@ -92,7 +92,7 @@ public static class RuntimeConfigOptions
                 var insertAt = rules.Count;
                 for (var i = 0; i < rules.Count; i++)
                 {
-                    if (rules[i] is not JsonObject rule || rule["outboundTag"] is null) continue;
+                    if (rules[i] is not JsonObject rule || (rule["outboundTag"] is null && rule["balancerTag"] is null)) continue;
                     var hasCondition = new[]
                     {
                         "domain", "ip", "port", "source", "sourcePort",
