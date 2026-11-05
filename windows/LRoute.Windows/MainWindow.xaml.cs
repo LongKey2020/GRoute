@@ -300,7 +300,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            foreach (var path in new[] { validationPath, sourcePath }.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct())
+            foreach (var path in new[] { validationPath, sourcePath }.OfType<string>().Distinct())
             {
                 try
                 {
