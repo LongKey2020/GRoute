@@ -10,6 +10,7 @@ namespace LRoute.Windows;
 public sealed class XrayEngine : IDisposable
 {
     private readonly object _sync = new();
+    private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private Process? _process;
     private readonly StringBuilder _log = new();
     private string? _runtimeConfigPath;
@@ -40,6 +41,16 @@ public sealed class XrayEngine : IDisposable
         string configPath,
         bool tunMode = false,
         CancellationToken cancellationToken = default)
+    {
+        await _lifecycle.WaitAsync(cancellationToken);
+        try { await ConnectCoreAsync(configPath, tunMode, cancellationToken); }
+        finally { _lifecycle.Release(); }
+    }
+
+    private async Task ConnectCoreAsync(
+        string configPath,
+        bool tunMode,
+        CancellationToken cancellationToken)
     {
         if (!File.Exists(configPath))
             throw new FileNotFoundException("The selected Xray JSON profile could not be found.", configPath);
@@ -137,6 +148,15 @@ public sealed class XrayEngine : IDisposable
 
         try
         {
+            // Publish the process reference before Start so a very fast process exit
+            // cannot race ahead of the Exited handler and leave a dead process registered.
+            lock (_sync)
+            {
+                _process = process;
+                _runtimeConfigPath = runtimeConfigPath;
+                _tunMode = tunMode;
+            }
+
             if (!process.Start())
                 throw new InvalidOperationException("Windows could not start the Xray-core process.");
             processStarted = true;
@@ -145,13 +165,6 @@ public sealed class XrayEngine : IDisposable
             {
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
-            }
-
-            lock (_sync)
-            {
-                _process = process;
-                _runtimeConfigPath = runtimeConfigPath;
-                _tunMode = tunMode;
             }
 
             await Task.Delay(tunMode ? 2500 : 1200, cancellationToken);
@@ -179,9 +192,14 @@ public sealed class XrayEngine : IDisposable
                 _runtimeConfigPath = null;
                 _tunMode = false;
             }
-            if (processStarted && !process.HasExited)
+            if (processStarted)
             {
-                try { process.Kill(entireProcessTree: true); } catch { }
+                try
+                {
+                    if (!process.HasExited) process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync();
+                }
+                catch { /* Preserve the original startup exception; cleanup below remains best-effort. */ }
             }
             process.Dispose();
             TryDeleteRuntimeFiles(runtimeConfigPath);
@@ -190,6 +208,13 @@ public sealed class XrayEngine : IDisposable
     }
 
     public async Task DisconnectAsync()
+    {
+        await _lifecycle.WaitAsync();
+        try { await DisconnectCoreAsync(); }
+        finally { _lifecycle.Release(); }
+    }
+
+    private async Task DisconnectCoreAsync()
     {
         Process? process;
         string? runtimeConfigPath;
