@@ -4,7 +4,7 @@ A clean Windows x64 rewrite of LRoute. The Android application remains the featu
 
 ## Included in this build
 
-- Native WPF dashboard with LRoute dark/orange styling.
+- Native WPF dashboard with LRoute dark/orange styling and grouped Choose Server profile management: add/import, subscription grouping, expand/collapse groups, search, name sorting, bounded-concurrency Test All, per-profile ping/edit/share/export/remove actions, group refresh/test/share/remove actions.
 - Self-contained Windows x64 publish with Xray-core 26.10.31 and Wintun runtime packaged.
 - Profile import from VLESS, VMess, Trojan, Shadowsocks, SOCKS and HTTP share links.
 - Import of complete Xray JSON configurations and standalone outbound JSON.
