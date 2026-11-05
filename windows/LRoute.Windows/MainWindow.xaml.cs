@@ -268,6 +268,87 @@ public partial class MainWindow : Window
         }));
     }
 
+    private void Backup_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_storeReady)
+        {
+            MessageBox.Show(this, "The profile vault could not be read. Resolve that issue before creating a complete backup.",
+                "Backup unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Create encrypted LRoute profile backup",
+            Filter = "Encrypted LRoute backup (*.lroute)|*.lroute",
+            FileName = "LRoute-profiles.lroute",
+            DefaultExt = ".lroute",
+            AddExtension = true
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            _store.ExportBackup(dialog.FileName, _profiles);
+            MessageBox.Show(this,
+                "Encrypted profile backup created. It can be restored only under the same Windows user account.",
+                "Backup complete", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Backup failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void RestoreBackup_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_storeReady)
+        {
+            MessageBox.Show(this, "The profile vault could not be read. Resolve that issue before restoring a backup.",
+                "Restore unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Restore encrypted LRoute profile backup",
+            Filter = "Encrypted LRoute backup (*.lroute)|*.lroute|All files (*.*)|*.*",
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        if (MessageBox.Show(this,
+            "Restoring this backup will replace all currently saved profiles. Continue?",
+            "Replace saved profiles", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            var restored = _store.ImportBackup(dialog.FileName);
+            var previous = _profiles.ToArray();
+            try
+            {
+                _profiles.Clear();
+                foreach (var profile in restored) _profiles.Add(profile);
+                _store.Save(_profiles);
+            }
+            catch
+            {
+                _profiles.Clear();
+                foreach (var profile in previous) _profiles.Add(profile);
+                throw;
+            }
+
+            _active = null;
+            RefreshUi();
+            MessageBox.Show(this, $"Restored {restored.Count} profile(s).",
+                "Restore complete", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Restore failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async void ValidateSelected_Click(object sender, RoutedEventArgs e)
     {
         if (ProfilesList.SelectedItem is not ProxyProfile profile)
