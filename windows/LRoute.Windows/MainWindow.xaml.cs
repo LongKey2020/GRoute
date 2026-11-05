@@ -209,7 +209,7 @@ public partial class MainWindow : Window
         });
         var tun = new CheckBox
         {
-            Content = "Use full-device TUN mode (requires administrator approval)",
+            Content = "EXPERIMENTAL: use full-device TUN mode (requires administrator approval)",
             IsChecked = _settings.UseTunMode,
             Foreground = Brushes.White,
             Margin = new Thickness(0, 0, 0, 8)
@@ -217,7 +217,7 @@ public partial class MainWindow : Window
         panel.Children.Add(tun);
         panel.Children.Add(new TextBlock
         {
-            Text = "TUN routes device traffic through the Wintun adapter. If disabled, LRoute uses the Windows system proxy for WinINET-aware applications.",
+            Text = "TUN routes device traffic through the Wintun adapter and requests administrator approval. This mode has automated config tests but still needs physical Windows route, DNS and disconnect testing. If disabled, LRoute uses the Windows system proxy for WinINET-aware applications.",
             TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(Color.FromRgb(160, 167, 177)),
             Margin = new Thickness(0, 0, 0, 20)
