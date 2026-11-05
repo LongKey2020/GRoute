@@ -84,6 +84,30 @@ try
         "Standalone Xray outbound should be wrapped as a complete config.");
     Console.WriteLine("PASS: standalone Xray outbound wrapping");
 
+    const string fullXrayJson = """{"outbounds":[{"tag":"proxy","protocol":"vless","settings":{"vnext":[{"address":"example.com","port":443,"users":[{"id":"11111111-1111-4111-8111-111111111111","encryption":"none"}]}]}},{"tag":"direct","protocol":"freedom"}],"routing":{"rules":[{"type":"field","outboundTag":"direct"}]}}""";
+    var fullJsonProfile = ProxyLinkParser.ParseMany(fullXrayJson).Single();
+    var fullJsonRuntime = RuntimeProfileBuilder.Build(fullJsonProfile);
+    using (var fullRuntime = JsonDocument.Parse(fullJsonRuntime))
+    {
+        var localInbounds = fullRuntime.RootElement.GetProperty("inbounds").EnumerateArray().ToArray();
+        Assert(localInbounds.Any(item => item.TryGetProperty("protocol", out var protocol) &&
+            protocol.GetString() == "http" && item.GetProperty("port").GetInt32() == 2081 &&
+            item.GetProperty("listen").GetString() == "127.0.0.1"),
+            "Complete imported Xray JSON must expose the local HTTP proxy listener safely.");
+        Assert(localInbounds.Any(item => item.TryGetProperty("protocol", out var protocol) &&
+            protocol.GetString() == "socks" && item.GetProperty("port").GetInt32() == 2080),
+            "Complete imported Xray JSON must expose the local SOCKS listener.");
+        var runtimeRules = fullRuntime.RootElement.GetProperty("routing").GetProperty("rules").EnumerateArray().ToArray();
+        Assert(runtimeRules[0].GetProperty("outboundTag").GetString() == "proxy" &&
+            runtimeRules[0].GetProperty("inboundTag").GetArrayLength() == 2,
+            "Local listeners must route to the selected proxy before the imported global catch-all.");
+    }
+    var fullJsonPath = Path.Combine(temp, "complete-imported-config.json");
+    await File.WriteAllTextAsync(fullJsonPath, fullJsonRuntime);
+    using (var validator = new LRoute.Windows.XrayEngine(xray))
+        await validator.TestConfigAsync(fullJsonPath);
+    Console.WriteLine("PASS: complete imported Xray JSON gets local proxy listeners and validates");
+
     var mixed = ProxyLinkParser.ParseManyDetailed(cases[0].Item2 + Environment.NewLine + "unsupported://example.com");
     Assert(mixed.Profiles.Count == 1 && mixed.Errors.Count == 1,
         "A malformed/unsupported subscription entry must not discard valid entries.");
