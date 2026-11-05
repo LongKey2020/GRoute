@@ -9,7 +9,8 @@ public static class RuntimeProfileBuilder
 {
     public static string Build(ProxyProfile profile, int localSocksPort = 2080, int localHttpPort = 2081)
     {
-        if (!string.IsNullOrWhiteSpace(profile.RawJson)) return profile.RawJson;
+        if (!string.IsNullOrWhiteSpace(profile.RawJson))
+            return EnsureLocalProxyInbounds(profile.RawJson, localSocksPort, localHttpPort);
         var stream = new JsonObject { ["network"] = profile.Network };
         if (profile.Security == "tls")
         {
@@ -66,5 +67,128 @@ public static class RuntimeProfileBuilder
             ["routing"] = new JsonObject { ["domainStrategy"] = "AsIs", ["rules"] = new JsonArray() }
         };
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static string EnsureLocalProxyInbounds(string sourceJson, int socksPort, int httpPort)
+    {
+        var root = JsonNode.Parse(sourceJson) as JsonObject
+            ?? throw new InvalidDataException("Imported Xray configuration must be a JSON object.");
+        var outbounds = root["outbounds"] as JsonArray
+            ?? throw new InvalidDataException("Imported Xray configuration has no outbounds array.");
+        var proxy = outbounds.OfType<JsonObject>().FirstOrDefault(item =>
+        {
+            var protocol = item["protocol"]?.GetValue<string>()?.ToLowerInvariant();
+            return protocol is not null && protocol is not ("freedom" or "blackhole" or "dns" or "loopback");
+        }) ?? throw new InvalidDataException("Imported Xray configuration has no proxy outbound.");
+
+        var proxyTag = proxy["tag"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(proxyTag))
+        {
+            proxyTag = UniqueTag(outbounds.OfType<JsonObject>(), "lroute-proxy", item => item["tag"]?.GetValue<string>());
+            proxy["tag"] = proxyTag;
+        }
+
+        var inbounds = root["inbounds"] as JsonArray;
+        if (inbounds is null)
+        {
+            inbounds = new JsonArray();
+            root["inbounds"] = inbounds;
+        }
+
+        var socksTag = EnsureLocalInbound(inbounds, "socks", socksPort, "lroute-socks-in");
+        var httpTag = EnsureLocalInbound(inbounds, "http", httpPort, "lroute-http-in");
+
+        var routing = root["routing"] as JsonObject;
+        if (routing is null)
+        {
+            routing = new JsonObject();
+            root["routing"] = routing;
+        }
+        var rules = routing["rules"] as JsonArray;
+        if (rules is null)
+        {
+            rules = new JsonArray();
+            routing["rules"] = rules;
+        }
+
+        var tags = new[] { socksTag, httpTag };
+        var alreadyRouted = rules.OfType<JsonObject>().Any(rule =>
+            string.Equals(rule["outboundTag"]?.GetValue<string>(), proxyTag, StringComparison.Ordinal) &&
+            rule["inboundTag"] is JsonArray inboundTags &&
+            tags.All(tag => inboundTags.Any(value => string.Equals(value?.GetValue<string>(), tag, StringComparison.Ordinal))));
+        if (!alreadyRouted)
+        {
+            var insertAt = rules.Count;
+            for (var i = 0; i < rules.Count; i++)
+            {
+                if (rules[i] is not JsonObject rule || rule["outboundTag"] is null) continue;
+                var hasDestinationCondition = new[]
+                {
+                    "domain", "ip", "port", "source", "sourcePort",
+                    "network", "protocol", "user", "attrs"
+                }.Any(key => rule[key] is not null);
+                if (!hasDestinationCondition)
+                {
+                    insertAt = i;
+                    break;
+                }
+            }
+
+            rules.Insert(insertAt, new JsonObject
+            {
+                ["type"] = "field",
+                ["inboundTag"] = new JsonArray(socksTag, httpTag),
+                ["outboundTag"] = proxyTag
+            });
+        }
+
+        return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static string EnsureLocalInbound(JsonArray inbounds, string protocol, int port, string preferredTag)
+    {
+        if (port is < 1 or > 65535) throw new ArgumentOutOfRangeException(nameof(port));
+        var existing = inbounds.OfType<JsonObject>().FirstOrDefault(item =>
+            item["port"] is JsonValue value && value.TryGetValue<int>(out var currentPort) && currentPort == port);
+
+        if (existing is not null)
+        {
+            if (!string.Equals(existing["protocol"]?.GetValue<string>(), protocol, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException($"Imported Xray configuration already uses local port {port} for a different inbound protocol.");
+            existing["listen"] = "127.0.0.1";
+            var existingTag = existing["tag"]?.GetValue<string>();
+            if (!string.IsNullOrWhiteSpace(existingTag)) return existingTag;
+            var generatedTag = UniqueTag(inbounds.OfType<JsonObject>(), preferredTag, item => item["tag"]?.GetValue<string>());
+            existing["tag"] = generatedTag;
+            return generatedTag;
+        }
+
+        var tag = UniqueTag(inbounds.OfType<JsonObject>(), preferredTag, item => item["tag"]?.GetValue<string>());
+        var settings = protocol == "socks"
+            ? new JsonObject { ["auth"] = "noauth", ["udp"] = true }
+            : new JsonObject();
+        inbounds.Add(new JsonObject
+        {
+            ["tag"] = tag,
+            ["listen"] = "127.0.0.1",
+            ["port"] = port,
+            ["protocol"] = protocol,
+            ["settings"] = settings
+        });
+        return tag;
+    }
+
+    private static string UniqueTag<T>(
+        IEnumerable<T> items,
+        string preferred,
+        Func<T, string?> getTag)
+    {
+        var tags = new HashSet<string>(
+            items.Select(getTag).Where(tag => !string.IsNullOrWhiteSpace(tag)).Cast<string>(),
+            StringComparer.OrdinalIgnoreCase);
+        if (!tags.Contains(preferred)) return preferred;
+        var suffix = 2;
+        while (tags.Contains(preferred + "-" + suffix)) suffix++;
+        return preferred + "-" + suffix;
     }
 }
