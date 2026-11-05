@@ -257,7 +257,7 @@ public partial class MainWindow : Window
         {
             Directory.CreateDirectory(RuntimeDirectory);
             var config = RuntimeConfigOptions.Apply(
-                RuntimeProfileBuilder.Build(profile), _settings.DnsServers, _settings.BypassDomains);
+                RuntimeProfileBuilder.Build(profile), _settings.DnsServers, _settings.BypassDomains, _settings.AdBlockEnabled ? _settings.BlockedDomains : "");
             var path = Path.Combine(RuntimeDirectory, $"profile-{profile.Id}.json");
             await File.WriteAllTextAsync(path, config);
             _activeRuntimeConfigPath = path;
@@ -734,7 +734,7 @@ public partial class MainWindow : Window
             ProfilesList.SelectedItem = best.Profile; RefreshUi();
             MessageBox.Show(dialog,"Selected " + best.Profile.Name + " (" + best.Ms + " ms). Connect when ready. ICMP is only a reachability estimate.","Smart connect");
         }));
-        toolButtons.Children.Add(Action("Adblocker status", (_,_) => MessageBox.Show(dialog,"DNS/ad-block filtering is not implemented in this Windows runtime yet. No filtering is being applied.","Adblocker",MessageBoxButton.OK,MessageBoxImage.Information)));
+        toolButtons.Children.Add(Action("Adblocker: " + (_settings.AdBlockEnabled ? "ON" : "OFF"), (_,_) => MessageBox.Show(dialog, _settings.AdBlockEnabled ? "Domain blocklist is enabled. Changes take effect after reconnecting." : "Domain blocklist is currently disabled. Enable it under Connection Settings.", "Adblocker", MessageBoxButton.OK, MessageBoxImage.Information)));
         toolsBody.Children.Add(toolButtons);
 
         // CONNECTION SETTINGS
@@ -746,6 +746,10 @@ public partial class MainWindow : Window
         var kill = new CheckBox { Content = "Kill switch — not available in this build", IsEnabled = false, Foreground = muted, Margin = new Thickness(0,4,0,4) };
         var perApp = new CheckBox { Content = "Per-app proxy — not available in this build", IsEnabled = false, Foreground = muted, Margin = new Thickness(0,4,0,10) };
         connectionBody.Children.Add(kill); connectionBody.Children.Add(perApp);
+        var adblock = new CheckBox { Content = "Enable domain ad / tracker blocking", IsChecked = _settings.AdBlockEnabled, Foreground = Brushes.White, Margin = new Thickness(0,8,0,8) };
+        connectionBody.Children.Add(adblock);
+        connectionBody.Children.Add(Label("Blocked domains (one per line; Xray blackhole outbound)"));
+        var blockedDomains = Field(_settings.BlockedDomains, 86); blockedDomains.AcceptsReturn = true; blockedDomains.TextWrapping = TextWrapping.Wrap; connectionBody.Children.Add(blockedDomains);
         connectionBody.Children.Add(Label("DNS servers (comma-separated IP or HTTPS DNS URL)"));
         var dns = Field(_settings.DnsServers); connectionBody.Children.Add(dns);
         connectionBody.Children.Add(Label("Bypass domains (one per line)"));
@@ -776,9 +780,9 @@ public partial class MainWindow : Window
         {
             try
             {
-                var next = _settings with { UseTunMode=tun.IsChecked==true, DnsServers=dns.Text.Trim(), BypassDomains=bypass.Text.Trim(), Theme="Dark", Language="English" };
+                var next = _settings with { UseTunMode=tun.IsChecked==true, DnsServers=dns.Text.Trim(), BypassDomains=bypass.Text.Trim(), AdBlockEnabled=adblock.IsChecked==true, BlockedDomains=blockedDomains.Text.Trim(), Theme="Dark", Language="English" };
                 const string validationConfig = """{"outbounds":[{"tag":"proxy","protocol":"freedom"},{"tag":"direct","protocol":"freedom"}],"routing":{"rules":[{"type":"field","outboundTag":"proxy"}]}}""";
-                RuntimeConfigOptions.Apply(validationConfig,next.DnsServers,next.BypassDomains);
+                RuntimeConfigOptions.Apply(validationConfig,next.DnsServers,next.BypassDomains,next.AdBlockEnabled ? next.BlockedDomains : "");
                 next.Save(); _settings=next;
                 MessageBox.Show(dialog,"Connection settings saved. Reconnect for changes to affect the running tunnel.","Settings saved",MessageBoxButton.OK,MessageBoxImage.Information);
             }
