@@ -146,10 +146,14 @@ public static class XrayTunConfigBuilder
 
         Directory.CreateDirectory(runtimeDirectory);
         var runtimePath = Path.Combine(runtimeDirectory, $"xray-tun-{Guid.NewGuid():N}.json");
-        var log = root["log"] as JsonObject ?? new JsonObject();
+        var log = root["log"] as JsonObject;
+        if (log is null)
+        {
+            log = new JsonObject();
+            root["log"] = log;
+        }
         if (log["loglevel"] is null) log["loglevel"] = "warning";
         log["error"] = runtimePath + ".error.log";
-        root["log"] = log;
         await File.WriteAllTextAsync(runtimePath, root.ToJsonString(new System.Text.Json.JsonSerializerOptions
         {
             WriteIndented = true
