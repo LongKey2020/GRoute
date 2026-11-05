@@ -787,7 +787,7 @@ public partial class MainWindow : Window
         connectionBody.Children.Add(fragment);
         var sniffing = new CheckBox { Content = "Turn on Sniffing", IsChecked = _settings.SniffingEnabled, Foreground = Brushes.White, Margin = new Thickness(0,10,0,2) };
         connectionBody.Children.Add(sniffing);
-        connectionBody.Children.Add(new TextBlock { Text = "Detects HTTP, TLS, QUIC and FakeDNS destination domains for routing.", Foreground = muted, TextWrapping = TextWrapping.Wrap });
+        connectionBody.Children.Add(new TextBlock { Text = "Detects HTTP, TLS and QUIC destination domains for routing.", Foreground = muted, TextWrapping = TextWrapping.Wrap });
         var mux = new CheckBox { Content = "Mux (multiplexing)", IsChecked = _settings.MuxEnabled, Foreground = Brushes.White, Margin = new Thickness(0,10,0,2) };
         connectionBody.Children.Add(mux);
         connectionBody.Children.Add(new TextBlock { Text = "Shares TCP connections (concurrency 8). May reduce speed or conflict with Reality/Vision; leave off if unstable.", Foreground = muted, TextWrapping = TextWrapping.Wrap });
@@ -795,7 +795,7 @@ public partial class MainWindow : Window
         connectionBody.Children.Add(kill);
         var perApp = new CheckBox { Content = "Per-app proxy — not available in this build", IsEnabled = false, Foreground = muted, Margin = new Thickness(0,4,0,10) };
         connectionBody.Children.Add(perApp);
-        connectionBody.Children.Add(Label("Mixed port (local SOCKS + HTTP proxy)"));
+        connectionBody.Children.Add(Label("HTTP proxy port (SOCKS remains on 2080)"));
         var mixedPort = Field(_settings.MixedPort.ToString()); mixedPort.Width = 120; mixedPort.HorizontalAlignment = HorizontalAlignment.Right;
         connectionBody.Children.Add(mixedPort);
         var adblock = new CheckBox { Content = "Enable domain ad / tracker blocking", IsChecked = _settings.AdBlockEnabled, Foreground = Brushes.White, Margin = new Thickness(0,8,0,8) };
