@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private bool _storeReady = true;
     private bool _allowClose;
     private bool _closingInProgress;
+    private string? _activeRuntimeConfigPath;
     private string RuntimeDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LRoute", "Runtime");
 
     public MainWindow()
@@ -114,6 +115,7 @@ public partial class MainWindow : Window
             try
             {
                 await _engine.DisconnectAsync();
+                DeleteActiveRuntimeConfig();
                 RestoreSystemProxyWithWarning();
                 _active = null;
             }
@@ -131,16 +133,22 @@ public partial class MainWindow : Window
             var config = RuntimeProfileBuilder.Build(profile);
             var path = Path.Combine(RuntimeDirectory, $"profile-{profile.Id}.json");
             await File.WriteAllTextAsync(path, config);
+            _activeRuntimeConfigPath = path;
             await _engine.ConnectAsync(path, false);
             try { _systemProxy.Activate(); }
             catch
             {
                 await _engine.DisconnectAsync();
+                DeleteActiveRuntimeConfig();
                 throw;
             }
             _active = profile;
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Connection failed", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception ex)
+        {
+            DeleteActiveRuntimeConfig();
+            MessageBox.Show(this, ex.Message, "Connection failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
         RefreshUi();
     }
 
@@ -155,6 +163,7 @@ public partial class MainWindow : Window
                     $"Xray stopped, but Windows proxy settings could not be restored. Check Windows Settings > Network & Internet > Proxy.\\n\\n{ex.Message}",
                     "Proxy recovery required", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            DeleteActiveRuntimeConfig();
             _active = null;
             RefreshUi();
         }));
@@ -179,6 +188,24 @@ public partial class MainWindow : Window
             "LRoute Settings", MessageBoxButton.OK, MessageBoxImage.Information);
     }
     private void Menu_Click(object sender, RoutedEventArgs e) { MessageBox.Show(this, "LRoute Windows • WireGuard and QR scanning are excluded.", "About LRoute"); }
+
+    private void DeleteActiveRuntimeConfig()
+    {
+        var path = _activeRuntimeConfigPath;
+        _activeRuntimeConfigPath = null;
+        if (string.IsNullOrWhiteSpace(path)) return;
+
+        try
+        {
+            var runtimeRoot = Path.GetFullPath(RuntimeDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            var fullPath = Path.GetFullPath(path);
+            if (!fullPath.StartsWith(runtimeRoot, StringComparison.OrdinalIgnoreCase)) return;
+            if (File.Exists(fullPath)) File.Delete(fullPath);
+            if (File.Exists(fullPath + ".error.log")) File.Delete(fullPath + ".error.log");
+        }
+        catch { /* Best-effort cleanup of LRoute-owned runtime files only. */ }
+    }
 
     private void RestoreSystemProxyWithWarning()
     {
@@ -255,6 +282,7 @@ public partial class MainWindow : Window
             try
             {
                 if (_engine.IsRunning) await _engine.DisconnectAsync();
+                DeleteActiveRuntimeConfig();
                 RestoreSystemProxyWithWarning();
                 _allowClose = true;
                 Close();
