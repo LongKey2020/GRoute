@@ -102,7 +102,7 @@ try
             runtimeRules[0].GetProperty("inboundTag").GetArrayLength() == 2,
             "Local listeners must route to the selected proxy before the imported global catch-all.");
     }
-    const string importedPortConflict = """{"outbounds":[{"tag":"proxy","protocol":"freedom"}],"inbounds":[{"tag":"dns-in","listen":"127.0.0.1","port":2081,"protocol":"dokodemo-door"}]}""";
+    const string importedPortConflict = """{"outbounds":[{"tag":"proxy","protocol":"vless","settings":{"vnext":[{"address":"example.com","port":443,"users":[{"id":"11111111-1111-4111-8111-111111111111","encryption":"none"}]}]}}],"inbounds":[{"tag":"dns-in","listen":"127.0.0.1","port":2081,"protocol":"dokodemo-door"}]}""";
     var conflictingProfile = ProxyLinkParser.ParseMany(importedPortConflict).Single();
     var portConflictRejected = false;
     try { RuntimeProfileBuilder.Build(conflictingProfile); }
