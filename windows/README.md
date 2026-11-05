@@ -42,3 +42,8 @@ The GitHub Actions workflow also downloads the official Xray Windows x64 archive
 CI verifies the WPF build, self-contained publish, bundled Xray runtime, representative VLESS/VMess/Trojan/Shadowsocks/SOCKS/HTTP parsing, Xray `run -test`, TLS/default-Trojan behavior, VMess fallback naming, partial-import diagnostics, caller-owned config preservation, imported full-JSON local listeners, standalone profile diagnostics, generated TUN configuration, custom DNS, domain bypass ordering, subscription source metadata, Windows proxy restoration, DPAPI profile storage and encrypted backup/restore.
 
 CI does **not** prove successful connectivity to a real proxy server, Windows proxy restoration on a user's machine, DNS leak resistance, TUN route cleanup, or compatibility with every Windows application. Those require physical Windows testing before a general production release.
+
+
+### Subscription usage and expiry
+
+When a subscription is refreshed, LRoute reads the optional `subscription-userinfo` response header and stores upload, download, total quota, and Unix expiry values with the subscription profiles. The profile list displays used/total data and expiry. If the provider omits this header, existing metadata is retained; a missing value is not treated as zero quota. Background/scheduled refresh is not yet implemented.
