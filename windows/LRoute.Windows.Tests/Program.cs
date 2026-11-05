@@ -114,7 +114,7 @@ try
     {
         var dnsServers = configured.RootElement.GetProperty("dns").GetProperty("servers");
         Assert(dnsServers.GetArrayLength() == 2, "DNS preferences must be applied to the Xray document.");
-        var rules = configured.RootElement.GetProperty("routing").GetProperty("rules");
+        var rules = configured.RootElement.GetProperty("routing").GetProperty("rules").EnumerateArray().ToArray();
         var bypass = rules.FirstOrDefault(rule =>
             rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "direct" &&
             rule.TryGetProperty("domain", out _));
@@ -122,8 +122,8 @@ try
         var domains = bypass.GetProperty("domain").EnumerateArray().Select(x => x.GetString()).ToArray();
         Assert(domains.Contains("domain:example.com") && domains.Contains("domain:internal.example"),
             "Domain bypass must normalize wildcard and newline-separated entries.");
-        Assert(Array.FindIndex(rules.ToArray(), rule => rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "direct") <
-            Array.FindIndex(rules.ToArray(), rule => rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "proxy"),
+        Assert(Array.FindIndex(rules, rule => rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "direct") <
+            Array.FindIndex(rules, rule => rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "proxy"),
             "Direct bypass rules must be evaluated before the proxy catch-all.");
     }
     var invalidDnsRejected = false;
