@@ -454,18 +454,28 @@ public partial class MainWindow : Window
     }
     private async void TestAll_Click(object sender, RoutedEventArgs e)
     {
-        var button = (Button)sender; button.IsEnabled = false; button.Content = "Testing...";
+        var button = (Button)sender; button.IsEnabled = false; button.Content = "Testing servers...";
         try
         {
-            using var ping = new Ping(); var good = 0; var bad = 0; var samples = new List<(string Name,long Ms)>();
-            foreach (var profile in _profiles.ToArray())
+            using var gate = new SemaphoreSlim(24);
+            var tasks = _profiles.ToArray().Select(async profile =>
             {
-                var host = GetProbeHost(profile); if (string.IsNullOrWhiteSpace(host)) { bad++; continue; }
-                try { var reply = await ping.SendPingAsync(host, 1200); if (reply.Status == IPStatus.Success) { good++; samples.Add((profile.Name,reply.RoundtripTime)); } else bad++; }
-                catch { bad++; }
-            }
-            var fastest = samples.OrderBy(s => s.Ms).Take(15).Select(s => s.Name + ": " + s.Ms + " ms");
-            MessageBox.Show(this,"Tested: " + (good+bad) + "\nReachable: " + good + "\nUnreachable/blocked: " + bad + "\n\nFastest:\n" + string.Join(Environment.NewLine,fastest) + "\n\nICMP may be blocked. This does not measure VPN tunnel latency.","Test all servers",MessageBoxButton.OK,MessageBoxImage.Information);
+                var host = GetProbeHost(profile);
+                if (string.IsNullOrWhiteSpace(host)) return (Name: profile.Name, Ms: (long?)null);
+                await gate.WaitAsync();
+                try
+                {
+                    using var ping = new Ping();
+                    var reply = await ping.SendPingAsync(host, 1200);
+                    return (Name: profile.Name, Ms: reply.Status == IPStatus.Success ? (long?)reply.RoundtripTime : null);
+                }
+                catch { return (Name: profile.Name, Ms: (long?)null); }
+                finally { gate.Release(); }
+            }).ToArray();
+            var results = await Task.WhenAll(tasks);
+            var good = results.Count(x => x.Ms.HasValue);
+            var fastest = results.Where(x => x.Ms.HasValue).OrderBy(x => x.Ms).Take(15).Select(x => x.Name + ": " + x.Ms + " ms");
+            MessageBox.Show(this, "Tested: " + results.Length + "\nReachable: " + good + "\nUnreachable/blocked: " + (results.Length-good) + "\n\nFastest:\n" + string.Join(Environment.NewLine,fastest) + "\n\nICMP may be blocked. This does not measure VPN tunnel latency.", "Test all servers", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         finally { button.Content = "▥   Test all"; button.IsEnabled = true; }
     }
