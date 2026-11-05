@@ -118,7 +118,8 @@ try
         await engine.DisconnectAsync();
         await exited.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert(!engine.IsRunning, "Xray engine must report stopped after disconnect.");
-        Console.WriteLine("PASS: Xray process start, duplicate-start guard, exit event and graceful cleanup");
+        Assert(File.Exists(lifecycleConfigPath), "Disconnect must not delete the caller-owned profile config.");
+        Console.WriteLine("PASS: Xray process start, duplicate-start guard, exit event and caller config preservation");
     }
 
     using (var engine = new LRoute.Windows.XrayEngine(xray))
@@ -129,7 +130,8 @@ try
         catch (OperationCanceledException) { cancelled = true; }
         Assert(cancelled, "Cancelling Xray startup should cancel ConnectAsync.");
         Assert(!engine.IsRunning, "Cancelling Xray startup must not leave a child process running.");
-        Console.WriteLine("PASS: Xray startup cancellation cleanup");
+        Assert(File.Exists(lifecycleConfigPath), "Cancelled startup must not delete the caller-owned profile config.");
+        Console.WriteLine("PASS: Xray startup cancellation cleanup and caller config preservation");
     }
 
     const string internetSettingsPath = @"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
