@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private readonly XrayEngine _engine = new();
     private readonly SystemProxyManager _systemProxy = new();
     private readonly SubscriptionFetcher _subscriptions = new();
+    private LRouteUserSettings _settings = LRouteUserSettings.Load();
     private ProxyProfile? _active;
     private bool _storeReady = true;
     private bool _allowClose;
@@ -130,17 +131,21 @@ public partial class MainWindow : Window
         try
         {
             Directory.CreateDirectory(RuntimeDirectory);
-            var config = RuntimeProfileBuilder.Build(profile);
+            var config = RuntimeConfigOptions.Apply(
+                RuntimeProfileBuilder.Build(profile), _settings.DnsServers, _settings.BypassDomains);
             var path = Path.Combine(RuntimeDirectory, $"profile-{profile.Id}.json");
             await File.WriteAllTextAsync(path, config);
             _activeRuntimeConfigPath = path;
-            await _engine.ConnectAsync(path, false);
-            try { _systemProxy.Activate(); }
-            catch
+            await _engine.ConnectAsync(path, _settings.UseTunMode);
+            if (!_settings.UseTunMode)
             {
-                await _engine.DisconnectAsync();
-                DeleteActiveRuntimeConfig();
-                throw;
+                try { _systemProxy.Activate(); }
+                catch
+                {
+                    await _engine.DisconnectAsync();
+                    DeleteActiveRuntimeConfig();
+                    throw;
+                }
             }
             _active = profile;
         }
@@ -181,11 +186,114 @@ public partial class MainWindow : Window
     private void Profiles_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Profiles"; PageSubtitle.Text = "Import and manage Xray-compatible profiles."; }
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show(this,
-            "This Windows release currently uses the Windows Internet Settings proxy (HTTP 127.0.0.1:2081).\\n\\n" +
-            "WinINET-aware applications use LRoute. Some WinHTTP services, games and applications with their own network stack may not.\\n\\n" +
-            "Advanced DNS, split routing, kill switch and TUN controls are not included in this release candidate.",
-            "LRoute Settings", MessageBoxButton.OK, MessageBoxImage.Information);
+        var dialog = new Window
+        {
+            Title = "LRoute • Connection settings",
+            Owner = this,
+            Width = 650,
+            Height = 620,
+            MinWidth = 560,
+            MinHeight = 520,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = new SolidColorBrush(Color.FromRgb(25, 27, 31)),
+            Foreground = Brushes.White
+        };
+        var panel = new StackPanel { Margin = new Thickness(22) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "CONNECTION MODE",
+            FontSize = 11,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(Color.FromRgb(242, 138, 53)),
+            Margin = new Thickness(0, 0, 0, 10)
+        });
+        var tun = new CheckBox
+        {
+            Content = "Use full-device TUN mode (requires administrator approval)",
+            IsChecked = _settings.UseTunMode,
+            Foreground = Brushes.White,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        panel.Children.Add(tun);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "TUN routes device traffic through the Wintun adapter. If disabled, LRoute uses the Windows system proxy for WinINET-aware applications.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = new SolidColorBrush(Color.FromRgb(160, 167, 177)),
+            Margin = new Thickness(0, 0, 0, 20)
+        });
+        panel.Children.Add(new TextBlock { Text = "DNS SERVERS", FontWeight = FontWeights.Bold, FontSize = 11, Margin = new Thickness(0, 0, 0, 7) });
+        var dns = new TextBox
+        {
+            Text = _settings.DnsServers,
+            Height = 38,
+            Padding = new Thickness(10, 8, 10, 8),
+            Background = new SolidColorBrush(Color.FromRgb(16, 17, 19)),
+            Foreground = Brushes.White,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(58, 64, 73))
+        };
+        panel.Children.Add(dns);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Comma-separated IP addresses or HTTPS DNS endpoints, for example 1.1.1.1, 8.8.8.8 or https://dns.google/dns-query.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = new SolidColorBrush(Color.FromRgb(160, 167, 177)),
+            Margin = new Thickness(0, 6, 0, 20)
+        });
+        panel.Children.Add(new TextBlock { Text = "BYPASS DOMAINS (SPLIT ROUTING)", FontWeight = FontWeights.Bold, FontSize = 11, Margin = new Thickness(0, 0, 0, 7) });
+        var bypass = new TextBox
+        {
+            Text = _settings.BypassDomains,
+            Height = 150,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Padding = new Thickness(10),
+            Background = new SolidColorBrush(Color.FromRgb(16, 17, 19)),
+            Foreground = Brushes.White,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(58, 64, 73)),
+            FontFamily = new FontFamily("Consolas")
+        };
+        panel.Children.Add(bypass);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "One domain per line. Matching domains bypass the proxy and use the direct connection. Example: example.com or *.example.org.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = new SolidColorBrush(Color.FromRgb(160, 167, 177)),
+            Margin = new Thickness(0, 6, 0, 18)
+        });
+        var save = new Button
+        {
+            Content = "SAVE SETTINGS",
+            Height = 42,
+            Background = new SolidColorBrush(Color.FromRgb(242, 138, 53)),
+            Foreground = Brushes.Black,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(242, 138, 53))
+        };
+        save.Click += (_, _) =>
+        {
+            try
+            {
+                var next = new LRouteUserSettings
+                {
+                    UseTunMode = tun.IsChecked == true,
+                    DnsServers = dns.Text.Trim(),
+                    BypassDomains = bypass.Text.Trim()
+                };
+                const string validationConfig = """{"outbounds":[{"tag":"proxy","protocol":"freedom"},{"tag":"direct","protocol":"freedom"}],"routing":{"rules":[{"type":"field","outboundTag":"proxy"}]}}""";
+                RuntimeConfigOptions.Apply(validationConfig, next.DnsServers, next.BypassDomains);
+                next.Save();
+                _settings = next;
+                dialog.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(dialog, ex.Message, "Invalid connection settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        };
+        panel.Children.Add(save);
+        dialog.Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        dialog.ShowDialog();
     }
     private void Menu_Click(object sender, RoutedEventArgs e) { MessageBox.Show(this, "LRoute Windows • WireGuard and QR scanning are excluded.", "About LRoute"); }
 
@@ -257,7 +365,7 @@ public partial class MainWindow : Window
     {
         ProfileCount.Text = $"{_profiles.Count} saved profile{(_profiles.Count == 1 ? "" : "s")}";
         var running = _engine.IsRunning;
-        StatusText.Text = running ? "System proxy active" : "Disconnected";
+        StatusText.Text = running ? (_engine.IsTunMode ? "TUN active" : "System proxy active") : "Disconnected";
         StatusDot.Fill = running ? new SolidColorBrush(Color.FromRgb(65,190,125)) : new SolidColorBrush(Color.FromRgb(119,127,137));
         EngineState.Text = running ? "Running" : "Stopped";
         ConnectButton.Content = running ? "Disconnect" : "Connect";
