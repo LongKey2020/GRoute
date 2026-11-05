@@ -43,6 +43,19 @@ public sealed class XrayEngine : IDisposable
         return File.Exists(path) ? path : null;
     }
 
+    public async Task TestConfigAsync(
+        string configPath,
+        CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(configPath))
+            throw new FileNotFoundException("The selected Xray JSON profile could not be found.", configPath);
+
+        var executable = FindExecutable()
+            ?? throw new FileNotFoundException("The bundled Xray-core runtime is missing. Reinstall the latest LRoute build.");
+
+        await ValidateConfigAsync(executable, configPath, cancellationToken);
+    }
+
     public async Task ConnectAsync(
         string configPath,
         bool tunMode = false,
