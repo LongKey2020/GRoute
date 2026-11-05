@@ -101,8 +101,8 @@ public partial class MainWindow : Window
         try
         {
             var url = selected.SubscriptionUrl;
-            var content = await _subscriptions.GetContentAsync(url);
-            var result = ProxyLinkParser.ParseManyDetailed(content);
+            var fetched = await _subscriptions.FetchAsync(url);
+            var result = ProxyLinkParser.ParseManyDetailed(fetched.Content);
             if (result.Profiles.Count == 0)
                 throw new FormatException(result.Errors.Count > 0
                     ? string.Join(Environment.NewLine, result.Errors)
@@ -114,9 +114,19 @@ public partial class MainWindow : Window
             var insertIndex = oldProfiles.Length > 0 ? _profiles.IndexOf(oldProfiles[0]) : _profiles.IndexOf(selected);
             foreach (var oldProfile in oldProfiles) _profiles.Remove(oldProfile);
 
+            var previousMetadata = oldProfiles.FirstOrDefault(profile =>
+                profile.SubscriptionTotalBytes > 0 || profile.SubscriptionExpiresAt > 0 ||
+                profile.SubscriptionUploadBytes > 0 || profile.SubscriptionDownloadBytes > 0);
+            var info = fetched.UserInfo;
+            var refreshedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var refreshed = result.Profiles.Select(profile => profile with
             {
-                SubscriptionUrl = url
+                SubscriptionUrl = url,
+                SubscriptionUploadBytes = info?.UploadBytes ?? previousMetadata?.SubscriptionUploadBytes ?? 0,
+                SubscriptionDownloadBytes = info?.DownloadBytes ?? previousMetadata?.SubscriptionDownloadBytes ?? 0,
+                SubscriptionTotalBytes = info?.TotalBytes ?? previousMetadata?.SubscriptionTotalBytes ?? 0,
+                SubscriptionExpiresAt = info?.ExpiresAt ?? previousMetadata?.SubscriptionExpiresAt ?? 0,
+                SubscriptionLastUpdated = refreshedAt
             }).ToArray();
             for (var i = 0; i < refreshed.Length; i++)
                 _profiles.Insert(Math.Clamp(insertIndex + i, 0, _profiles.Count), refreshed[i]);
