@@ -37,6 +37,8 @@ public static class XrayTunConfigBuilder
             proxy["tag"] = proxyTag;
         }
 
+        if (root["inbounds"] is not null && root["inbounds"] is not JsonArray)
+            throw new InvalidDataException("Xray inbounds must be an array.");
         var inbounds = root["inbounds"] as JsonArray;
         if (inbounds is null)
         {
@@ -82,6 +84,8 @@ public static class XrayTunConfigBuilder
             ["autoSystemWfpBlockLeak"] = new JsonArray("dns", "misconfigtun")
         };
 
+        if (root["routing"] is not null && root["routing"] is not JsonObject)
+            throw new InvalidDataException("Xray routing must be an object.");
         var routing = root["routing"] as JsonObject;
         if (routing is null)
         {
@@ -89,6 +93,8 @@ public static class XrayTunConfigBuilder
             root["routing"] = routing;
         }
 
+        if (routing["rules"] is not null && routing["rules"] is not JsonArray)
+            throw new InvalidDataException("Xray routing rules must be an array.");
         var rules = routing["rules"] as JsonArray;
         if (rules is null)
         {
@@ -147,6 +153,8 @@ public static class XrayTunConfigBuilder
 
         Directory.CreateDirectory(runtimeDirectory);
         var runtimePath = Path.Combine(runtimeDirectory, $"xray-tun-{Guid.NewGuid():N}.json");
+        if (root["log"] is not null && root["log"] is not JsonObject)
+            throw new InvalidDataException("Xray log configuration must be an object.");
         var log = root["log"] as JsonObject;
         if (log is null)
         {
