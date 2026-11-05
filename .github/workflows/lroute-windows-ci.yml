@@ -1,12 +1,12 @@
 name: LRoute Windows CI
 on:
   push:
-    branches: [lroute-windows, lroute-windows-rebuild]
+    branches: [lroute-windows-rebuild]
     paths:
       - "windows/**"
       - ".github/workflows/lroute-windows-ci.yml"
   pull_request:
-    branches: [lroute-windows]
+    branches: [lroute-windows-rebuild]
     paths:
       - "windows/**"
       - ".github/workflows/lroute-windows-ci.yml"
