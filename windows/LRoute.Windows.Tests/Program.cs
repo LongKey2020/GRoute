@@ -97,6 +97,44 @@ try
         "Unauthenticated HTTP proxy must not emit an empty users array.");
     Console.WriteLine("PASS: unauthenticated HTTP proxy config");
 
+    // TUN generation must write a private runtime copy and preserve the imported source.
+    var tunSourcePath = Path.Combine(temp, "caller-owned-tun-source.json");
+    var tunSourceContents = RuntimeProfileBuilder.Build(unauthenticatedHttp[0]);
+    await File.WriteAllTextAsync(tunSourcePath, tunSourceContents);
+    var tunRuntimePath = await LRoute.Windows.XrayTunConfigBuilder.CreateAsync(
+        tunSourcePath, Path.Combine(temp, "tun-runtime"));
+    Assert(tunRuntimePath != tunSourcePath && File.Exists(tunRuntimePath),
+        "TUN builder must create a separate runtime config.");
+    Assert(await File.ReadAllTextAsync(tunSourcePath) == tunSourceContents,
+        "TUN builder must not modify the caller-owned source profile.");
+    using (var tunDocument = JsonDocument.Parse(await File.ReadAllTextAsync(tunRuntimePath)))
+    {
+        Assert(tunDocument.RootElement.GetProperty("inbounds").EnumerateArray()
+            .Any(item => item.TryGetProperty("protocol", out var protocol) && protocol.GetString() == "tun"),
+            "Generated TUN config must contain a TUN inbound.");
+        Assert(tunDocument.RootElement.GetProperty("routing").GetProperty("rules").EnumerateArray()
+            .Any(rule => rule.TryGetProperty("inboundTag", out var tags) &&
+                tags.EnumerateArray().Any(tag => tag.GetString() == "lroute-tun-in")),
+            "Generated TUN config must route the TUN inbound.");
+    }
+    var tunValidation = new ProcessStartInfo(xray)
+    {
+        UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+        CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(xray)!
+    };
+    tunValidation.ArgumentList.Add("run");
+    tunValidation.ArgumentList.Add("-test");
+    tunValidation.ArgumentList.Add("-config");
+    tunValidation.ArgumentList.Add(tunRuntimePath);
+    using (var process = Process.Start(tunValidation) ?? throw new InvalidOperationException("Could not start TUN config validator."))
+    {
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        Assert(process.ExitCode == 0, "Generated TUN config rejected by Xray: " + (await stdout) + Environment.NewLine + (await stderr));
+    }
+    Console.WriteLine("PASS: TUN runtime config generation, Xray validation and source profile preservation");
+
     // A rejected caller-owned profile must survive validation failure unchanged.
     var invalidConfigPath = Path.Combine(temp, "caller-owned-invalid.json");
     const string invalidConfigContents = "{ invalid json";
