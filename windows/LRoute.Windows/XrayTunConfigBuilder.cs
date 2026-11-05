@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net;
 using System.Text.Json.Nodes;
 
 namespace LRoute.Windows;
@@ -58,13 +59,24 @@ public static class XrayTunConfigBuilder
         tun["tag"] = tunTag;
         tun["port"] = 0;
         tun["protocol"] = "tun";
+        var configuredDns = (root["dns"] as JsonObject)?["servers"] as JsonArray;
+        var tunDnsServers = configuredDns?
+            .OfType<JsonValue>()
+            .Select(value => value.TryGetValue<string>(out var server) ? server : null)
+            .Where(server => server is not null && IPAddress.TryParse(server, out _))
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray() ?? [];
+        if (tunDnsServers.Length == 0)
+            tunDnsServers = ["1.1.1.1", "8.8.8.8", "2606:4700:4700::1111", "2001:4860:4860::8888"];
+
         tun["settings"] = new JsonObject
         {
             ["name"] = "lroute0",
             ["desc"] = "LRoute",
             ["mtu"] = 1500,
             ["gateway"] = new JsonArray("10.0.0.1/16", "fc00::1/64"),
-            ["dns"] = new JsonArray("1.1.1.1", "8.8.8.8", "2606:4700:4700::1111", "2001:4860:4860::8888"),
+            ["dns"] = new JsonArray(tunDnsServers.Select(server => (JsonNode?)JsonValue.Create(server)).ToArray()),
             ["autoSystemRoutingTable"] = new JsonArray("0.0.0.0/0", "::/0"),
             ["autoOutboundsInterface"] = "auto",
             ["autoSystemWfpBlockLeak"] = new JsonArray("dns", "misconfigtun")
