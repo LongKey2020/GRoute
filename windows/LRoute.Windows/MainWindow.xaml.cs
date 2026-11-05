@@ -302,6 +302,12 @@ public partial class MainWindow : Window
 
     private void RestoreBackup_Click(object sender, RoutedEventArgs e)
     {
+        if (_engine.IsRunning)
+        {
+            MessageBox.Show(this, "Disconnect before restoring a profile backup.", "LRoute",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         if (!_storeReady)
         {
             MessageBox.Show(this, "The profile vault could not be read. Resolve that issue before restoring a backup.",
