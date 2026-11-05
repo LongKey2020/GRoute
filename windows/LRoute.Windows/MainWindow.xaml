@@ -28,10 +28,9 @@
   <Border Grid.Column="0" Background="#191B1F" BorderBrush="#30343B" BorderThickness="1" CornerRadius="16" Padding="18">
    <DockPanel>
     <StackPanel DockPanel.Dock="Top">
-     <Grid Margin="0,2,0,28"><Grid.ColumnDefinitions><ColumnDefinition Width="48"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+     <Grid Margin="0,2,0,28"><Grid.ColumnDefinitions><ColumnDefinition Width="48"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <Border Width="38" Height="38" CornerRadius="12" Background="#F28A35"><TextBlock Text="L" FontSize="24" FontWeight="Bold" Foreground="#101113" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
       <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0"><TextBlock Text="LROUTE" FontSize="20" FontWeight="Bold"/><TextBlock Text="SECURE NETWORK" FontSize="9" Foreground="{StaticResource Muted}" Margin="1,2,0,0"/></StackPanel>
-      <Button Grid.Column="2" Content="•••" Padding="10,5" Background="Transparent" Click="Menu_Click"/>
      </Grid>
      <TextBlock Text="CONNECTION" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Muted}" Margin="2,0,0,10"/>
      <Border Background="#202329" BorderBrush="#343942" BorderThickness="1" CornerRadius="12" Padding="14">
@@ -50,7 +49,7 @@
     <StackPanel DockPanel.Dock="Bottom">
      <Border Height="1" Background="{StaticResource Line}" Margin="0,16,0,14"/>
      <TextBlock Text="LRoute for Windows" Foreground="{StaticResource Muted}" FontSize="11"/>
-     <TextBlock Text="Xray-based • WireGuard excluded" Foreground="{StaticResource Muted}" FontSize="10" Margin="0,3,0,0"/>
+     <TextBlock Text="Xray-based Windows client" Foreground="{StaticResource Muted}" FontSize="10" Margin="0,3,0,0"/>
     </StackPanel>
    </DockPanel>
   </Border>
@@ -58,7 +57,7 @@
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
    <Grid Margin="2,3,2,20"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <StackPanel><TextBlock x:Name="PageTitle" Text="Overview" FontSize="27" FontWeight="SemiBold"/><TextBlock x:Name="PageSubtitle" Text="Route WinINET-aware apps through your selected Xray profile." Foreground="{StaticResource Muted}" Margin="0,5,0,0"/></StackPanel>
-    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button Content="＋ Import profile" Click="Import_Click" Background="#F28A35" BorderBrush="#F28A35" Foreground="#171717"/><Button Content="Refresh subscription" Margin="8,0,0,0" Click="RefreshSubscription_Click"/><Button Content="Export selected" Margin="8,0,0,0" Click="Export_Click"/><Button Content="Manual config" Margin="8,0,0,0" Click="Manual_Click"/></StackPanel>
+    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button Content="＋ Import profile" Click="Import_Click" Background="#F28A35" BorderBrush="#F28A35" Foreground="#171717"/><Button Content="Refresh subscription" Margin="8,0,0,0" Click="RefreshSubscription_Click"/><Button Content="Export selected" Margin="8,0,0,0" Click="Export_Click"/><Button Content="Network test" Margin="8,0,0,0" Click="NetworkTest_Click"/><Button Content="Manual config" Margin="8,0,0,0" Click="Manual_Click"/></StackPanel>
    </Grid>
    <Grid Grid.Row="1">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
