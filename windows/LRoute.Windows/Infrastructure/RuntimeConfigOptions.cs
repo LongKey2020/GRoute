@@ -82,7 +82,7 @@ public static class RuntimeConfigOptions
                     var hasCondition = new[]
                     {
                         "domain", "ip", "port", "source", "sourcePort",
-                        "network", "protocol", "user", "attrs", "inboundTag"
+                        "network", "protocol", "user", "attrs"
                     }.Any(key => rule[key] is not null);
                     if (!hasCondition) { insertAt = i; break; }
                 }
