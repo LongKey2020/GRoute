@@ -239,7 +239,7 @@ try
     using (var engine = new LRoute.Windows.XrayEngine(xray))
     {
         var validationRejected = false;
-        try { await engine.ConnectAsync(invalidConfigPath); }
+        try { await engine.TestConfigAsync(invalidConfigPath); }
         catch (InvalidOperationException) { validationRejected = true; }
         Assert(validationRejected, "Xray must reject malformed caller-owned JSON.");
         Assert(File.Exists(invalidConfigPath), "Validation failure must not delete a caller-owned profile config.");
@@ -258,6 +258,8 @@ try
     {
         var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         engine.ProcessExited += (_, _) => exited.TrySetResult();
+        await engine.TestConfigAsync(lifecycleConfigPath);
+        Assert(File.Exists(lifecycleConfigPath), "Standalone validation must preserve the caller-owned profile.");
         await engine.ConnectAsync(lifecycleConfigPath);
         Assert(engine.IsRunning, "Xray engine must report running after a successful start.");
 
