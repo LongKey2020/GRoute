@@ -36,7 +36,7 @@ public sealed class SystemProxyManager
         return File.Exists(BackupPath) ? Restore() : [];
     }
 
-    public void Activate(int httpPort = 2081)
+    public void Activate(int httpPort = 10626)
     {
         if (httpPort is < 1 or > 65535) throw new ArgumentOutOfRangeException(nameof(httpPort));
         if (File.Exists(BackupPath))
@@ -109,7 +109,7 @@ public sealed class SystemProxyManager
             var appliedValues = snapshot.AppliedValues ?? new Dictionary<string, ValueSnapshot>(StringComparer.Ordinal)
             {
                 ["ProxyEnable"] = new(true, null, 1, (int)RegistryValueKind.DWord),
-                ["ProxyServer"] = new(true, "http=127.0.0.1:2081;https=127.0.0.1:2081", null, (int)RegistryValueKind.String),
+                ["ProxyServer"] = new(true, "http=127.0.0.1:10626;https=127.0.0.1:10626", null, (int)RegistryValueKind.String),
                 ["ProxyOverride"] = new(true, "<local>;localhost;127.*;[::1]", null, (int)RegistryValueKind.String),
                 ["AutoConfigURL"] = new(false, null, null, (int)RegistryValueKind.Unknown),
                 ["AutoDetect"] = new(true, null, 0, (int)RegistryValueKind.DWord)
