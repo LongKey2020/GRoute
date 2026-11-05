@@ -141,9 +141,14 @@ public static class ProxyLinkParser
             if (parts.Length != 2) throw new FormatException("Invalid Shadowsocks link.");
             methodPassword = parts[0]; hostPort = parts[1];
         }
-        if (methodPassword.Contains(':') == false)
-            methodPassword = Encoding.UTF8.GetString(Convert.FromBase64String(PadBase64(methodPassword)));
+        if (!methodPassword.Contains(':'))
+        {
+            try { methodPassword = Encoding.UTF8.GetString(Convert.FromBase64String(PadBase64(methodPassword))); }
+            catch (FormatException) { methodPassword = Uri.UnescapeDataString(methodPassword); }
+        }
         var auth = methodPassword.Split(':', 2);
+        if (auth.Length != 2 || string.IsNullOrWhiteSpace(auth[0]) || string.IsNullOrEmpty(auth[1]))
+            throw new FormatException("Shadowsocks link must include a valid method and password.");
         var endpoint = new Uri("ss://" + Uri.EscapeDataString(auth[0]) + ":" + Uri.EscapeDataString(auth[1]) + "@" + hostPort);
         if (string.IsNullOrWhiteSpace(endpoint.Host) || endpoint.Port is < 1 or > 65535)
             throw new FormatException("Shadowsocks link must include a valid server and port.");
