@@ -8,7 +8,7 @@ A clean Windows x64 rewrite of LRoute. The Android application remains the featu
 - Self-contained Windows x64 publish with Xray-core 26.10.31 and Wintun runtime packaged.
 - Profile import from VLESS, VMess, Trojan, Shadowsocks, SOCKS and HTTP share links.
 - Import of complete Xray JSON configurations and standalone outbound JSON.
-- Manual profile text import, file import, subscription URL download (HTTP/HTTPS), and per-line import diagnostics.
+- Manual profile text import, multi-file import, Xray JSON/share-link export, subscription URL download (HTTP/HTTPS), and per-line import diagnostics.
 - DPAPI-protected profile storage under `%LOCALAPPDATA%\LRoute\profiles.dat`.
 - Xray configuration validation before engine startup.
 - Windows Internet Settings proxy integration: WinINET-aware apps are directed to the local HTTP proxy; previous manual proxy/PAC settings are backed up with DPAPI and restored on disconnect, app close, or next launch after an unclean exit.
