@@ -368,15 +368,18 @@ try
         var testProfile = new ProxyProfile
         {
             Name = "dpapi-roundtrip-test", Protocol = "vless", Server = "profile-test.invalid",
-            Port = 443, UserId = "11111111-1111-4111-8111-111111111111"
+            Port = 443, UserId = "11111111-1111-4111-8111-111111111111",
+            SubscriptionUrl = "https://subscriptions.example/profile-list"
         };
         profileStore.Save([testProfile]);
         var encryptedBytes = File.ReadAllBytes(encryptedProfilesPath);
         Assert(!Encoding.UTF8.GetString(encryptedBytes).Contains(testProfile.Name, StringComparison.Ordinal),
             "Saved profile data must not be plaintext.");
         var roundTrip = profileStore.Load();
-        Assert(roundTrip.Count == 1 && roundTrip[0].Name == testProfile.Name && roundTrip[0].UserId == testProfile.UserId,
-            "DPAPI profile save/load round trip failed.");
+        Assert(roundTrip.Count == 1 && roundTrip[0].Name == testProfile.Name &&
+            roundTrip[0].UserId == testProfile.UserId &&
+            roundTrip[0].SubscriptionUrl == testProfile.SubscriptionUrl,
+            "DPAPI profile save/load round trip must preserve credentials and subscription source metadata.");
         Console.WriteLine("PASS: DPAPI encrypted profile storage round trip");
 
         File.Delete(encryptedProfilesPath);
