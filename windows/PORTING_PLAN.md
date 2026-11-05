@@ -21,7 +21,7 @@ Use the existing Android implementation under `app/src/main/java/net/gozar/app/`
 - Tunnel lifecycle, auto-select, per-app routing and kill-switch behavior: `GozarVpnService.kt`, `MainActivity.kt`
 - Profile CRUD, import/export, local/subscription profiles and backup/restore: `ConfigStore.kt`, `ConfigFile.kt`, `ConfigShare.kt`
 - Subscription fetch, refresh, quota/expiry metadata: `SubscriptionFetcher.kt`, `Subscriptionrefresher.kt`, `Subscription.kt`
-- Supported proxy transports/protocols must be confirmed from the Android parser/builder and ported with the unsupported WireGuard paths removed. Expected Xray-compatible families include VLESS, VMess, Trojan, Shadowsocks, SOCKS/HTTP, Hysteria2 and supported IKEv2 paths where the Android implementation provides them.
+- Supported proxy transports/protocols must be confirmed from the Android parser/builder and ported with unsupported platform-specific tunnel branches removed. Expected Xray-compatible families include VLESS, VMess, Trojan, Shadowsocks, SOCKS/HTTP, Hysteria2 and supported IKEv2 paths where the Android implementation provides them.
 
 ### Network, diagnostics and utilities
 - Config debugger: `Configdebug.kt`
