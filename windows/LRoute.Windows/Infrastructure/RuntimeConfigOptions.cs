@@ -12,7 +12,12 @@ public static class RuntimeConfigOptions
         string sourceJson,
         string? dnsServers,
         string? bypassDomains,
-        string? blockedDomains = null)
+        string? blockedDomains = null,
+        bool fakeDnsEnabled = false,
+        bool encryptedDnsEnabled = false,
+        bool iranDirectEnabled = false,
+        bool sniffingEnabled = false,
+        bool muxEnabled = false)
     {
         var root = JsonNode.Parse(sourceJson) as JsonObject
             ?? throw new InvalidDataException("Xray configuration must be a JSON object.");
@@ -24,7 +29,7 @@ public static class RuntimeConfigOptions
             {
                 if (IPAddress.TryParse(server, out _)) continue;
                 if (!Uri.TryCreate(server, UriKind.Absolute, out var uri) ||
-                    uri.Scheme != Uri.UriSchemeHttps || string.IsNullOrWhiteSpace(uri.Host))
+                    !(uri.Scheme == Uri.UriSchemeHttps || server.StartsWith("https+local://", StringComparison.OrdinalIgnoreCase)) || string.IsNullOrWhiteSpace(uri.Host))
                     throw new FormatException($"Invalid DNS server '{server}'. Use an IP address or HTTPS DNS URL.");
             }
 
@@ -38,6 +43,119 @@ public static class RuntimeConfigOptions
             }
             dnsConfig["servers"] = new JsonArray(dns.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
             if (dnsConfig["queryStrategy"] is null) dnsConfig["queryStrategy"] = "UseIPv4";
+        }
+
+
+        if (encryptedDnsEnabled)
+        {
+            if (dns.Length == 0)
+            {
+                dns = ["https+local://1.1.1.1/dns-query", "https+local://dns.google/dns-query"];
+            }
+            if (dns.Any(server => !(server.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                                    server.StartsWith("https+local://", StringComparison.OrdinalIgnoreCase))))
+                throw new FormatException("Encrypted DNS requires HTTPS/DoH servers only. Remove plain IP or UDP DNS entries.");
+            if (root["dns"] is not JsonObject encryptedDns)
+            {
+                encryptedDns = new JsonObject();
+                root["dns"] = encryptedDns;
+            }
+            encryptedDns["servers"] = new JsonArray(dns.Select(x =>
+                (JsonNode?)JsonValue.Create(x.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                    ? "https+local://" + x[8..] : x)).ToArray());
+            encryptedDns["disableFallback"] = true;
+            encryptedDns["queryStrategy"] ??= "UseIPv4";
+        }
+
+        if (fakeDnsEnabled)
+        {
+            root["fakedns"] = new JsonObject { ["ipPool"] = "198.18.0.0/15", ["poolSize"] = 65535 };
+            if (root["dns"] is not JsonObject fakeDnsConfig)
+            {
+                fakeDnsConfig = new JsonObject();
+                root["dns"] = fakeDnsConfig;
+            }
+            var servers = fakeDnsConfig["servers"] as JsonArray ?? new JsonArray();
+            fakeDnsConfig["servers"] = servers;
+            if (!servers.Any(item => string.Equals(item?.GetValue<string>(), "fakedns", StringComparison.OrdinalIgnoreCase)))
+                servers.Insert(0, JsonValue.Create("fakedns"));
+        }
+
+        if (sniffingEnabled || fakeDnsEnabled)
+        {
+            if (root["inbounds"] is not JsonArray inboundList)
+                throw new InvalidDataException("Xray configuration has no inbounds array for sniffing.");
+            foreach (var inbound in inboundList.OfType<JsonObject>())
+            {
+                var protocol = inbound["protocol"]?.GetValue<string>();
+                if (protocol is not ("socks" or "http" or "tun" or "dokodemo-door")) continue;
+                inbound["sniffing"] = new JsonObject
+                {
+                    ["enabled"] = true,
+                    ["destOverride"] = new JsonArray("http", "tls", "quic", "fakedns"),
+                    ["routeOnly"] = false
+                };
+            }
+        }
+
+        if (muxEnabled)
+        {
+            if (root["outbounds"] is not JsonArray muxOutbounds)
+                throw new InvalidDataException("Xray configuration has no outbounds array for Mux.");
+            var proxy = muxOutbounds.OfType<JsonObject>().FirstOrDefault(item =>
+            {
+                var protocol = item["protocol"]?.GetValue<string>()?.ToLowerInvariant();
+                return protocol is not null && protocol is not ("freedom" or "blackhole" or "dns" or "loopback");
+            }) ?? throw new InvalidDataException("No proxy outbound was found for Mux.");
+            proxy["mux"] = new JsonObject { ["enabled"] = true, ["concurrency"] = 8 };
+        }
+
+        if (iranDirectEnabled)
+        {
+            if (root["outbounds"] is not JsonArray routeOutbounds)
+                throw new InvalidDataException("Xray configuration has no outbounds array for regional routing.");
+            var directTag = routeOutbounds.OfType<JsonObject>().FirstOrDefault(item =>
+                string.Equals(item["protocol"]?.GetValue<string>(), "freedom", StringComparison.OrdinalIgnoreCase))
+                ?["tag"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(directTag))
+            {
+                directTag = "lroute-iran-direct";
+                var suffix = 2;
+                while (routeOutbounds.OfType<JsonObject>().Any(item =>
+                    string.Equals(item["tag"]?.GetValue<string>(), directTag, StringComparison.OrdinalIgnoreCase)))
+                    directTag = "lroute-iran-direct-" + suffix++;
+                routeOutbounds.Add(new JsonObject { ["tag"] = directTag, ["protocol"] = "freedom" });
+            }
+            if (root["routing"] is not JsonObject iranRouting)
+            {
+                iranRouting = new JsonObject();
+                root["routing"] = iranRouting;
+            }
+            if (iranRouting["rules"] is not JsonArray iranRules)
+            {
+                iranRules = new JsonArray();
+                iranRouting["rules"] = iranRules;
+            }
+            var hasIranRule = iranRules.OfType<JsonObject>().Any(rule =>
+                string.Equals(rule["outboundTag"]?.GetValue<string>(), directTag, StringComparison.OrdinalIgnoreCase) &&
+                rule["domain"] is JsonArray domainList && domainList.Any(x => x?.GetValue<string>() == "geosite:ir"));
+            if (!hasIranRule)
+            {
+                var insertAt = iranRules.Count;
+                for (var i = 0; i < iranRules.Count; i++)
+                {
+                    if (iranRules[i] is not JsonObject rule || (rule["outboundTag"] is null && rule["balancerTag"] is null)) continue;
+                    var hasCondition = new[] { "domain", "ip", "port", "source", "sourcePort", "network", "protocol", "user", "attrs" }.Any(key => rule[key] is not null);
+                    if (!hasCondition) { insertAt = i; break; }
+                }
+                iranRules.Insert(insertAt, new JsonObject
+                {
+                    ["type"] = "field",
+                    ["domain"] = new JsonArray("geosite:ir"),
+                    ["ip"] = new JsonArray("geoip:ir"),
+                    ["outboundTag"] = directTag
+                });
+            }
         }
 
         var domains = SplitValues(bypassDomains)
