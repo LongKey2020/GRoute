@@ -10,7 +10,7 @@ A clean Windows x64 rewrite of LRoute. The Android application remains the featu
 - Import of complete Xray JSON configurations and standalone outbound JSON.
 - Manual profile text import, multi-file import, Xray JSON/share-link export, subscription URL download and refresh (HTTP/HTTPS), and per-line import diagnostics.
 - DPAPI-protected profile storage under `%LOCALAPPDATA%\LRoute\profiles.dat`.
-- Xray configuration validation before engine startup.
+- Xray configuration validation before engine startup and a non-connecting “Validate selected” profile diagnostic.
 - Windows Internet Settings proxy integration: WinINET-aware apps are directed to the local HTTP proxy; previous manual proxy/PAC settings are backed up with DPAPI and restored on disconnect, app close, or next launch after an unclean exit.
 - Connection settings for custom DNS resolvers (IP or HTTPS DNS endpoints) and domain-based direct bypass rules.
 - Persistent non-secret connection preferences under `%LOCALAPPDATA%\LRoute\settings.json`.
