@@ -24,7 +24,9 @@ public sealed class SystemProxyManager
         ["ProxyEnable", "ProxyServer", "ProxyOverride", "AutoConfigURL", "AutoDetect"];
 
     public sealed record ValueSnapshot(bool Exists, string? Text, int? Number, int Kind);
-    public sealed record ProxySnapshot(Dictionary<string, ValueSnapshot> Values);
+    public sealed record ProxySnapshot(
+        Dictionary<string, ValueSnapshot> Values,
+        Dictionary<string, ValueSnapshot>? AppliedValues = null);
 
     public bool IsActive => File.Exists(BackupPath);
 
@@ -62,7 +64,15 @@ public sealed class SystemProxyManager
             };
         }
 
-        SaveBackup(new ProxySnapshot(values));
+        var appliedValues = new Dictionary<string, ValueSnapshot>(StringComparer.Ordinal)
+        {
+            ["ProxyEnable"] = new(true, null, 1, (int)RegistryValueKind.DWord),
+            ["ProxyServer"] = new(true, $"http=127.0.0.1:{httpPort};https=127.0.0.1:{httpPort}", null, (int)RegistryValueKind.String),
+            ["ProxyOverride"] = new(true, "<local>;localhost;127.*;[::1]", null, (int)RegistryValueKind.String),
+            ["AutoConfigURL"] = new(false, null, null, (int)RegistryValueKind.Unknown),
+            ["AutoDetect"] = new(true, null, 0, (int)RegistryValueKind.DWord)
+        };
+        SaveBackup(new ProxySnapshot(values, appliedValues));
         try
         {
             key.SetValue("ProxyEnable", 1, RegistryValueKind.DWord);
@@ -79,37 +89,83 @@ public sealed class SystemProxyManager
         }
     }
 
-    public void Restore()
+    /// <summary>
+    /// Restore only values that still match LRoute's own proxy configuration.
+    /// Values changed by the user or another application are preserved.
+    /// </summary>
+    public IReadOnlyList<string> Restore()
     {
-        if (!File.Exists(BackupPath)) return;
+        if (!File.Exists(BackupPath)) return [];
 
         var encrypted = File.ReadAllBytes(BackupPath);
         var json = ProtectedData.Unprotect(encrypted, Entropy, DataProtectionScope.CurrentUser);
-        var snapshot = JsonSerializer.Deserialize<ProxySnapshot>(json)
-            ?? throw new InvalidDataException("The saved Windows proxy backup is invalid.");
-
-        using var key = Registry.CurrentUser.OpenSubKey(InternetSettingsPath, writable: true)
-            ?? throw new InvalidOperationException("Could not open the current user's Windows Internet Settings registry key.");
-
-        foreach (var name in ManagedValues)
+        try
         {
-            if (!snapshot.Values.TryGetValue(name, out var value))
-                throw new InvalidDataException($"The Windows proxy backup is missing {name}.");
-            if (!value.Exists)
+            var snapshot = JsonSerializer.Deserialize<ProxySnapshot>(json)
+                ?? throw new InvalidDataException("The saved Windows proxy backup is invalid.");
+            if (snapshot.AppliedValues is null)
+                throw new InvalidDataException(
+                    "This proxy backup predates conflict-safe recovery. It was preserved; review Windows proxy settings before manual recovery.");
+
+            using var key = Registry.CurrentUser.OpenSubKey(InternetSettingsPath, writable: true)
+                ?? throw new InvalidOperationException("Could not open the current user's Windows Internet Settings registry key.");
+
+            var conflicts = new List<string>();
+            foreach (var name in ManagedValues)
             {
-                key.DeleteValue(name, throwOnMissingValue: false);
-                continue;
+                if (!snapshot.Values.TryGetValue(name, out var original) ||
+                    !snapshot.AppliedValues.TryGetValue(name, out var applied))
+                    throw new InvalidDataException($"The Windows proxy backup is missing {name}.");
+
+                var current = ReadValue(key, name);
+                if (current == original) continue; // A previous restore attempt already completed this value.
+                if (current != applied)
+                {
+                    conflicts.Add(name);
+                    continue; // Another actor changed this setting; do not overwrite it.
+                }
+
+                WriteValue(key, name, original);
             }
 
-            var kind = (RegistryValueKind)value.Kind;
-            if (value.Text is not null) key.SetValue(name, value.Text, kind);
-            else if (value.Number.HasValue) key.SetValue(name, value.Number.Value, kind);
-            else throw new InvalidDataException($"The Windows proxy backup contains an invalid value for {name}.");
+            RefreshWinInet();
+            File.Delete(BackupPath);
+            return conflicts;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(json);
+        }
+    }
+
+    private static ValueSnapshot ReadValue(RegistryKey key, string name)
+    {
+        var names = new HashSet<string>(key.GetValueNames(), StringComparer.OrdinalIgnoreCase);
+        if (!names.Contains(name))
+            return new ValueSnapshot(false, null, null, (int)RegistryValueKind.Unknown);
+
+        var kind = key.GetValueKind(name);
+        var raw = key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+        return raw switch
+        {
+            int number => new ValueSnapshot(true, null, number, (int)kind),
+            string text => new ValueSnapshot(true, text, null, (int)kind),
+            _ => throw new InvalidDataException($"Unsupported Windows proxy registry value type: {name}.")
+        };
+    }
+
+    private static void WriteValue(RegistryKey key, string name, ValueSnapshot value)
+    {
+        if (!value.Exists)
+        {
+            key.DeleteValue(name, throwOnMissingValue: false);
+            return;
         }
 
-        RefreshWinInet();
-        CryptographicOperations.ZeroMemory(json);
-        File.Delete(BackupPath);
+        var kind = (RegistryValueKind)value.Kind;
+        if (value.Text is not null) key.SetValue(name, value.Text, kind);
+        else if (value.Number.HasValue) key.SetValue(name, value.Number.Value, kind);
+        else throw new InvalidDataException($"The Windows proxy backup contains an invalid value for {name}.");
     }
 
     private static void SaveBackup(ProxySnapshot snapshot)
