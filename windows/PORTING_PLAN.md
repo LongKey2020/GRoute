@@ -65,7 +65,7 @@ A feature is complete only when its UI action, application logic, persistence (w
 ## Current Windows implementation status
 
 Implemented in the current rebuild branch:
-- WPF dashboard, profile import/export, selected-profile validation, subscription URL import/refresh.
+- WPF dashboard, profile import/export, selected-profile validation, subscription URL import/refresh with quota/expiry metadata from `subscription-userinfo`.
 - DPAPI profile vault, encrypted same-Windows-user profile backup/restore, and persisted non-secret connection preferences.
 - Xray profile parsing/building for VLESS, VMess, Trojan, Shadowsocks, SOCKS and HTTP.
 - System proxy activation/recovery, caller-owned config preservation and temporary runtime cleanup.
@@ -73,7 +73,7 @@ Implemented in the current rebuild branch:
 - Experimental Wintun/TUN launch path with generated-config validation; physical Windows route/DNS/shutdown validation remains a release gate.
 
 Still pending for Android feature parity:
-- Subscription quota/expiry metadata and scheduled refresh.
+- Scheduled/background subscription refresh (manual refresh now reads and persists quota/expiry metadata from `subscription-userinfo`).
 - Advanced DNS policy: fake DNS, encrypted DNS modes/policy, ad-block lists and sniffing.
 - GeoIP/geosite split-routing, per-app routing, kill switch and block-when-off behavior.
 - Live traffic counters, connection health, server/IP probes, network monitor, speed/stability tests and full debugger tooling.
