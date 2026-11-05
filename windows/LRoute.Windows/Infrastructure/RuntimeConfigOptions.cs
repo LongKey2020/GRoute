@@ -26,10 +26,14 @@ public static class RuntimeConfigOptions
                     throw new FormatException($"Invalid DNS server '{server}'. Use an IP address or HTTPS DNS URL.");
             }
 
-            var dnsConfig = root["dns"] as JsonObject ?? new JsonObject();
+            var dnsConfig = root["dns"] as JsonObject;
+            if (dnsConfig is null)
+            {
+                dnsConfig = new JsonObject();
+                root["dns"] = dnsConfig;
+            }
             dnsConfig["servers"] = new JsonArray(dns.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
             if (dnsConfig["queryStrategy"] is null) dnsConfig["queryStrategy"] = "UseIPv4";
-            root["dns"] = dnsConfig;
         }
 
         var domains = SplitValues(bypassDomains)
@@ -46,8 +50,18 @@ public static class RuntimeConfigOptions
             if (!hasDirect)
                 outbounds.Add(new JsonObject { ["tag"] = "direct", ["protocol"] = "freedom" });
 
-            var routing = root["routing"] as JsonObject ?? new JsonObject();
-            var rules = routing["rules"] as JsonArray ?? new JsonArray();
+            var routing = root["routing"] as JsonObject;
+            if (routing is null)
+            {
+                routing = new JsonObject();
+                root["routing"] = routing;
+            }
+            var rules = routing["rules"] as JsonArray;
+            if (rules is null)
+            {
+                rules = new JsonArray();
+                routing["rules"] = rules;
+            }
             var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var rule in rules.OfType<JsonObject>())
             {
@@ -83,8 +97,6 @@ public static class RuntimeConfigOptions
                 });
             }
 
-            routing["rules"] = rules;
-            root["routing"] = routing;
         }
 
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
