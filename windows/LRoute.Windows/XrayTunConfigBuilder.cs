@@ -119,7 +119,8 @@ public static class XrayTunConfigBuilder
             var fallbackIndex = rules.Count;
             for (var i = 0; i < rules.Count; i++)
             {
-                if (rules[i] is not JsonObject rule || rule["outboundTag"] is null ||
+                if (rules[i] is not JsonObject rule ||
+                    (rule["outboundTag"] is null && rule["balancerTag"] is null) ||
                     rule["inboundTag"] is JsonArray)
                     continue;
 
