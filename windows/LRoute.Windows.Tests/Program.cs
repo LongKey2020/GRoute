@@ -104,9 +104,11 @@ try
             "Complete imported VLESS JSON must preserve its TLS transport security.");
         var localInbounds = fullRuntime.RootElement.GetProperty("inbounds").EnumerateArray().ToArray();
         Assert(localInbounds.Any(item => item.TryGetProperty("protocol", out var protocol) &&
-            protocol.GetString() == "socks" && item.GetProperty("port").GetInt32() == 10626 &&
+            protocol.GetString() == "socks" && item.GetProperty("port").GetInt32() == 2080) &&
+            localInbounds.Any(item => item.TryGetProperty("protocol", out var protocol) &&
+            protocol.GetString() == "http" && item.GetProperty("port").GetInt32() == 10626 &&
             item.GetProperty("listen").GetString() == "127.0.0.1"),
-            "Complete imported Xray JSON must expose one local mixed SOCKS/HTTP proxy listener.");
+            "Imported Xray JSON must expose separate local SOCKS and HTTP proxy listeners.");
         var runtimeRules = fullRuntime.RootElement.GetProperty("routing").GetProperty("rules").EnumerateArray().ToArray();
         Assert(runtimeRules[0].GetProperty("outboundTag").GetString() == "proxy" &&
             runtimeRules[0].GetProperty("inboundTag").EnumerateArray().Any(x => x.GetString() == "lroute-mixed-in"),
