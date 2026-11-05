@@ -53,11 +53,11 @@ public sealed class SubscriptionFetcher
         }
 
         response.Headers.TryGetValues("subscription-userinfo", out var values);
-        var info = ParseUserInfo(values?.FirstOrDefault());
+        var info = ParseUserInfoHeader(values?.FirstOrDefault());
         return new SubscriptionFetchResult(System.Text.Encoding.UTF8.GetString(output.ToArray()), info);
     }
 
-    private static SubscriptionUserInfo? ParseUserInfo(string? header)
+    public static SubscriptionUserInfo? ParseUserInfoHeader(string? header)
     {
         if (string.IsNullOrWhiteSpace(header)) return null;
         var values = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
