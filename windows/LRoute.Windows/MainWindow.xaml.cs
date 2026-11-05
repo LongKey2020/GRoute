@@ -79,6 +79,41 @@ public partial class MainWindow : Window
             MessageBox.Show(this, "No supported Xray profiles were found. WireGuard and QR import are not included.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
+    private void Export_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProfilesList.SelectedItem is not ProxyProfile profile)
+        {
+            MessageBox.Show(this, "Select a profile to export first.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var safeName = string.Join("_", profile.Name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Export LRoute profile",
+            Filter = "Xray JSON profile (*.json)|*.json|Text profile (*.txt)|*.txt",
+            FileName = string.IsNullOrWhiteSpace(safeName) ? "LRoute-profile" : safeName,
+            DefaultExt = ".json",
+            AddExtension = true
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            var content = dialog.FilterIndex == 2 && !string.IsNullOrWhiteSpace(profile.SourceUri)
+                ? profile.SourceUri
+                : RuntimeProfileBuilder.Build(profile);
+            File.WriteAllText(dialog.FileName, content);
+            MessageBox.Show(this,
+                "Profile exported. The file contains connection credentials; keep it private.",
+                "Export complete", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Export failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void Manual_Click(object sender, RoutedEventArgs e)
     {
         var editor = new Window { Title = "LRoute • Manual profile", Owner = this, Width = 650, Height = 430, MinWidth = 500, MinHeight = 320,
