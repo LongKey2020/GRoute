@@ -103,9 +103,17 @@ public sealed class SystemProxyManager
         {
             var snapshot = JsonSerializer.Deserialize<ProxySnapshot>(json)
                 ?? throw new InvalidDataException("The saved Windows proxy backup is invalid.");
-            if (snapshot.AppliedValues is null)
-                throw new InvalidDataException(
-                    "This proxy backup predates conflict-safe recovery. It was preserved; review Windows proxy settings before manual recovery.");
+            // Backward compatibility: previous LRoute builds stored only the
+            // original snapshot and always applied this fixed proxy configuration.
+            // Recover only values that still match that known LRoute state.
+            var appliedValues = snapshot.AppliedValues ?? new Dictionary<string, ValueSnapshot>(StringComparer.Ordinal)
+            {
+                ["ProxyEnable"] = new(true, null, 1, (int)RegistryValueKind.DWord),
+                ["ProxyServer"] = new(true, "http=127.0.0.1:2081;https=127.0.0.1:2081", null, (int)RegistryValueKind.String),
+                ["ProxyOverride"] = new(true, "<local>;localhost;127.*;[::1]", null, (int)RegistryValueKind.String),
+                ["AutoConfigURL"] = new(false, null, null, (int)RegistryValueKind.Unknown),
+                ["AutoDetect"] = new(true, null, 0, (int)RegistryValueKind.DWord)
+            };
 
             using var key = Registry.CurrentUser.OpenSubKey(InternetSettingsPath, writable: true)
                 ?? throw new InvalidOperationException("Could not open the current user's Windows Internet Settings registry key.");
@@ -114,7 +122,7 @@ public sealed class SystemProxyManager
             foreach (var name in ManagedValues)
             {
                 if (!snapshot.Values.TryGetValue(name, out var original) ||
-                    !snapshot.AppliedValues.TryGetValue(name, out var applied))
+                    !appliedValues.TryGetValue(name, out var applied))
                     throw new InvalidDataException($"The Windows proxy backup is missing {name}.");
 
                 var current = ReadValue(key, name);
