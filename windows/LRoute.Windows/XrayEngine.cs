@@ -11,10 +11,16 @@ public sealed class XrayEngine : IDisposable
 {
     private readonly object _sync = new();
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
+    private readonly string? _executableOverride;
     private Process? _process;
     private readonly StringBuilder _log = new();
     private string? _runtimeConfigPath;
     private bool _tunMode;
+
+    public XrayEngine(string? executablePath = null)
+    {
+        _executableOverride = executablePath;
+    }
 
     public event EventHandler? ProcessExited;
 
@@ -33,7 +39,7 @@ public sealed class XrayEngine : IDisposable
 
     public string? FindExecutable()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, "xray", "xray.exe");
+        var path = _executableOverride ?? Path.Combine(AppContext.BaseDirectory, "xray", "xray.exe");
         return File.Exists(path) ? path : null;
     }
 
