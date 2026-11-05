@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Net.NetworkInformation;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -87,7 +88,7 @@ public partial class MainWindow : Window
         RefreshUi();
         if (importErrors.Count > 0) ShowImportErrors(importErrors);
         if (added == 0 && importErrors.Count == 0)
-            MessageBox.Show(this, "No supported Xray profiles were found. WireGuard and QR import are not included.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, "No supported Xray profiles were found.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private async void RefreshSubscription_Click(object sender, RoutedEventArgs e)
@@ -545,7 +546,104 @@ public partial class MainWindow : Window
         dialog.Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         dialog.ShowDialog();
     }
-    private void Menu_Click(object sender, RoutedEventArgs e) { MessageBox.Show(this, "LRoute Windows • WireGuard and QR scanning are excluded.", "About LRoute"); }
+
+    private async void NetworkTest_Click(object sender, RoutedEventArgs e)
+    {
+        var profile = _active ?? ProfilesList.SelectedItem as ProxyProfile;
+        if (profile is null)
+        {
+            MessageBox.Show(this, "Select a profile first. Network Test will ping that profile's server.",
+                "Network test", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var host = GetProbeHost(profile);
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            MessageBox.Show(this,
+                "This imported Xray configuration does not expose a single server address for Ping Check. Select a standard server profile instead.",
+                "Network test", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var button = (Button)sender;
+        button.IsEnabled = false;
+        button.Content = "Testing...";
+        try
+        {
+            const int attempts = 4;
+            const int timeoutMs = 1500;
+            var samples = new List<long>();
+            var failures = 0;
+            var statuses = new List<string>();
+            using var ping = new Ping();
+
+            for (var i = 0; i < attempts; i++)
+            {
+                try
+                {
+                    var reply = await ping.SendPingAsync(host, timeoutMs);
+                    if (reply.Status == IPStatus.Success)
+                        samples.Add(reply.RoundtripTime);
+                    else
+                    {
+                        failures++;
+                        statuses.Add(reply.Status.ToString());
+                    }
+                }
+                catch (Exception ex) when (ex is PingException or System.Net.Sockets.SocketException)
+                {
+                    failures++;
+                    statuses.Add(ex.GetBaseException().Message);
+                }
+            }
+
+            var loss = failures * 100.0 / attempts;
+            var result = samples.Count > 0
+                ? $"Target: {host}\nProfile: {profile.Name}\n\nPackets: {attempts}\nReceived: {samples.Count}\nLost: {failures} ({loss:0.#}%)\nMinimum: {samples.Min()} ms\nAverage: {samples.Average():0.#} ms\nMaximum: {samples.Max()} ms"
+                : $"Target: {host}\nProfile: {profile.Name}\n\nPing failed: {attempts}/{attempts} packets lost (100%).\n{string.Join(Environment.NewLine, statuses.Distinct().Take(2))}\n\nThe server or network may block ICMP Ping.";
+            MessageBox.Show(this,
+                result + "\n\nNote: ICMP Ping checks reachability to the server address. It does not measure VPN tunnel latency or prove that proxy traffic is working.",
+                samples.Count > 0 ? "Network test result" : "Ping check failed",
+                MessageBoxButton.OK,
+                samples.Count > 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        finally
+        {
+            button.Content = "Network test";
+            button.IsEnabled = true;
+        }
+    }
+
+    private static string GetProbeHost(ProxyProfile profile)
+    {
+        if (!string.IsNullOrWhiteSpace(profile.Server)) return profile.Server;
+        if (string.IsNullOrWhiteSpace(profile.RawJson)) return "";
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(profile.RawJson);
+            if (!document.RootElement.TryGetProperty("outbounds", out var outbounds) ||
+                outbounds.ValueKind != System.Text.Json.JsonValueKind.Array) return "";
+            foreach (var outbound in outbounds.EnumerateArray())
+            {
+                if (!outbound.TryGetProperty("settings", out var settings)) continue;
+                foreach (var collectionName in new[] { "vnext", "servers", "peers" })
+                {
+                    if (!settings.TryGetProperty(collectionName, out var collection) ||
+                        collection.ValueKind != System.Text.Json.JsonValueKind.Array ||
+                        collection.GetArrayLength() == 0) continue;
+                    var first = collection[0];
+                    foreach (var field in new[] { "address", "host", "server" })
+                        if (first.TryGetProperty(field, out var value) &&
+                            value.ValueKind == System.Text.Json.JsonValueKind.String)
+                            return value.GetString() ?? "";
+                }
+            }
+        }
+        catch (System.Text.Json.JsonException) { }
+        return "";
+    }
 
     private void DeleteActiveRuntimeConfig()
     {
