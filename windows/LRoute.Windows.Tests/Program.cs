@@ -150,6 +150,23 @@ try
         Assert(!manager.IsActive, "Startup recovery should remove the stale system proxy backup.");
         AssertProxySettingsRestored(originalProxySettings);
         Console.WriteLine("PASS: Windows system proxy crash recovery");
+
+        manager.Activate(2081);
+        const string externallySetProxy = "http=127.0.0.1:9999;https=127.0.0.1:9999";
+        using (var key = Registry.CurrentUser.OpenSubKey(internetSettingsPath, writable: true))
+            key!.SetValue("ProxyServer", externallySetProxy, RegistryValueKind.String);
+        var conflicts = manager.Restore();
+        Assert(conflicts.Contains("ProxyServer"), "Restore must report proxy values changed by another actor.");
+        using (var key = Registry.CurrentUser.OpenSubKey(internetSettingsPath, writable: false))
+            Assert(Equals(key?.GetValue("ProxyServer"), externallySetProxy),
+                "Restore must preserve an externally changed proxy server value.");
+        var expectedAfterConflict = new Dictionary<string, (bool Exists, object? Value, RegistryValueKind Kind)>(originalProxySettings)
+        {
+            ["ProxyServer"] = (true, externallySetProxy, RegistryValueKind.String)
+        };
+        AssertProxySettingsRestored(expectedAfterConflict);
+        Assert(!manager.IsActive, "Conflict-safe restore should finish and clear its backup.");
+        Console.WriteLine("PASS: external Windows proxy changes are preserved during restore");
     }
     finally
     {
