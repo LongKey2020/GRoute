@@ -66,7 +66,7 @@ A feature is complete only when its UI action, application logic, persistence (w
 
 Implemented in the current rebuild branch:
 - WPF dashboard, profile import/export, selected-profile validation, subscription URL import/refresh.
-- DPAPI profile vault and persisted non-secret connection preferences.
+- DPAPI profile vault, encrypted same-Windows-user profile backup/restore, and persisted non-secret connection preferences.
 - Xray profile parsing/building for VLESS, VMess, Trojan, Shadowsocks, SOCKS and HTTP.
 - System proxy activation/recovery, caller-owned config preservation and temporary runtime cleanup.
 - Custom DNS resolver override and user-entered domain bypass rules.
@@ -78,7 +78,7 @@ Still pending for Android feature parity:
 - GeoIP/geosite split-routing, per-app routing, kill switch and block-when-off behavior.
 - Live traffic counters, connection health, server/IP probes, network monitor, speed/stability tests and full debugger tooling.
 - Hysteria2 and IKEv2 runtime adapters where Android supports them; these are not supplied by the current Xray-only runtime.
-- SSH shell, SFTP, backup/restore UI, and Warp/Tor/Windscribe/Aether integrations.
+- SSH shell, SFTP, and Warp/Tor/Windscribe/Aether integrations.
 - Physical Windows testing for TUN, real proxy connectivity, DNS leak behavior, application compatibility and crash recovery.
 
 Do not mark an item complete based only on UI presence or JSON generation. Each feature still requires the delivery-gate verification described above.
