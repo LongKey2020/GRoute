@@ -103,7 +103,7 @@ public static class RuntimeConfigOptions
     }
 
     private static string[] SplitValues(string? input) =>
-        (input ?? "").Split(new[] { ',', ';', '\\r', '\\n' },
+        (input ?? "").Split(new[] { ',', ';', '\r', '\n' },
             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private static string NormalizeDomain(string value)
