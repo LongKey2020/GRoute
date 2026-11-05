@@ -8,10 +8,10 @@ namespace LRoute.Windows.Infrastructure;
 /// <summary>Builds a minimal Xray JSON document for a single parsed proxy profile.</summary>
 public static class RuntimeProfileBuilder
 {
-    public static string Build(ProxyProfile profile, int localMixedPort = 10626)
+    public static string Build(ProxyProfile profile, int localHttpPort = 10626, int localSocksPort = 2080)
     {
         if (!string.IsNullOrWhiteSpace(profile.RawJson))
-            return EnsureLocalProxyInbounds(profile.RawJson, localMixedPort);
+            return EnsureLocalProxyInbounds(profile.RawJson, localHttpPort, localSocksPort);
         var stream = new JsonObject { ["network"] = profile.Network };
         if (profile.Security == "tls")
         {
@@ -60,16 +60,17 @@ public static class RuntimeProfileBuilder
         {
             ["log"] = new JsonObject { ["loglevel"] = "warning" },
             ["inbounds"] = new JsonArray(
-                new JsonObject { ["tag"] = "mixed-in", ["listen"] = "127.0.0.1", ["port"] = localMixedPort, ["protocol"] = "socks",
-                    ["settings"] = new JsonObject { ["udp"] = true, ["auth"] = "noauth" } }),
+                new JsonObject { ["tag"] = "socks-in", ["listen"] = "127.0.0.1", ["port"] = localSocksPort, ["protocol"] = "socks",
+                    ["settings"] = new JsonObject { ["udp"] = true, ["auth"] = "noauth" } },
+                new JsonObject { ["tag"] = "http-in", ["listen"] = "127.0.0.1", ["port"] = localHttpPort, ["protocol"] = "http", ["settings"] = new JsonObject() }),
             ["outbounds"] = new JsonArray(outbound, new JsonObject { ["tag"] = "direct", ["protocol"] = "freedom" },
                 new JsonObject { ["tag"] = "block", ["protocol"] = "blackhole" }),
-            ["routing"] = new JsonObject { ["domainStrategy"] = "AsIs", ["rules"] = new JsonArray(new JsonObject { ["type"] = "field", ["inboundTag"] = new JsonArray("mixed-in"), ["outboundTag"] = "proxy" }) }
+            ["routing"] = new JsonObject { ["domainStrategy"] = "AsIs", ["rules"] = new JsonArray(new JsonObject { ["type"] = "field", ["inboundTag"] = new JsonArray("socks-in", "http-in"), ["outboundTag"] = "proxy" }) }
         };
         return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
-    private static string EnsureLocalProxyInbounds(string sourceJson, int mixedPort)
+    private static string EnsureLocalProxyInbounds(string sourceJson, int httpPort, int socksPort)
     {
         var root = JsonNode.Parse(sourceJson) as JsonObject
             ?? throw new InvalidDataException("Imported Xray configuration must be a JSON object.");
@@ -97,7 +98,8 @@ public static class RuntimeProfileBuilder
             root["inbounds"] = inbounds;
         }
 
-        var mixedTag = EnsureLocalInbound(inbounds, "socks", mixedPort, "lroute-mixed-in");
+        var socksTag = EnsureLocalInbound(inbounds, "socks", socksPort, "lroute-socks-in");
+        var httpTag = EnsureLocalInbound(inbounds, "http", httpPort, "lroute-http-in");
 
         if (root["routing"] is not null && root["routing"] is not JsonObject)
             throw new InvalidDataException("Imported Xray routing must be an object.");
@@ -119,7 +121,7 @@ public static class RuntimeProfileBuilder
         var alreadyRouted = rules.OfType<JsonObject>().Any(rule =>
             string.Equals(rule["outboundTag"]?.GetValue<string>(), proxyTag, StringComparison.Ordinal) &&
             rule["inboundTag"] is JsonArray inboundTags &&
-            inboundTags.Any(value => string.Equals(value?.GetValue<string>(), mixedTag, StringComparison.Ordinal)));
+            new[] { socksTag, httpTag }.All(tag => inboundTags.Any(value => string.Equals(value?.GetValue<string>(), tag, StringComparison.Ordinal))));
         if (!alreadyRouted)
         {
             var insertAt = rules.Count;
@@ -141,7 +143,7 @@ public static class RuntimeProfileBuilder
             rules.Insert(insertAt, new JsonObject
             {
                 ["type"] = "field",
-                ["inboundTag"] = new JsonArray(mixedTag),
+                ["inboundTag"] = new JsonArray(socksTag, httpTag),
                 ["outboundTag"] = proxyTag
             });
         }
