@@ -97,6 +97,22 @@ try
         "Unauthenticated HTTP proxy must not emit an empty users array.");
     Console.WriteLine("PASS: unauthenticated HTTP proxy config");
 
+    // A rejected caller-owned profile must survive validation failure unchanged.
+    var invalidConfigPath = Path.Combine(temp, "caller-owned-invalid.json");
+    const string invalidConfigContents = "{ invalid json";
+    await File.WriteAllTextAsync(invalidConfigPath, invalidConfigContents);
+    using (var engine = new LRoute.Windows.XrayEngine(xray))
+    {
+        var validationRejected = false;
+        try { await engine.ConnectAsync(invalidConfigPath); }
+        catch (InvalidOperationException) { validationRejected = true; }
+        Assert(validationRejected, "Xray must reject malformed caller-owned JSON.");
+        Assert(File.Exists(invalidConfigPath), "Validation failure must not delete a caller-owned profile config.");
+        Assert(await File.ReadAllTextAsync(invalidConfigPath) == invalidConfigContents,
+            "Validation failure must not modify a caller-owned profile config.");
+        Console.WriteLine("PASS: rejected caller-owned profile survives Xray validation failure");
+    }
+
     // Exercise the real Xray process lifecycle on Windows, not only JSON validation.
     var lifecycleSocksPort = Random.Shared.Next(30000, 45000);
     var lifecycleHttpPort = lifecycleSocksPort == 44999 ? 30001 : lifecycleSocksPort + 1;
