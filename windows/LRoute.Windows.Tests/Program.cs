@@ -147,7 +147,8 @@ try
 
     // TUN generation must write a private runtime copy and preserve the imported source.
     var tunSourcePath = Path.Combine(temp, "caller-owned-tun-source.json");
-    var tunSourceContents = RuntimeProfileBuilder.Build(unauthenticatedHttp[0]);
+    var tunSourceContents = RuntimeConfigOptions.Apply(
+        RuntimeProfileBuilder.Build(unauthenticatedHttp[0]), "9.9.9.9, https://dns.google/dns-query", "");
     await File.WriteAllTextAsync(tunSourcePath, tunSourceContents);
     var tunRuntimePath = await LRoute.Windows.XrayTunConfigBuilder.CreateAsync(
         tunSourcePath, Path.Combine(temp, "tun-runtime"));
@@ -164,6 +165,11 @@ try
             .Any(rule => rule.TryGetProperty("inboundTag", out var tags) &&
                 tags.EnumerateArray().Any(tag => tag.GetString() == "lroute-tun-in")),
             "Generated TUN config must route the TUN inbound.");
+        var adapterDns = tunDocument.RootElement.GetProperty("inbounds").EnumerateArray()
+            .First(item => item.TryGetProperty("protocol", out var protocol) && protocol.GetString() == "tun")
+            .GetProperty("settings").GetProperty("dns").EnumerateArray().Select(item => item.GetString()).ToArray();
+        Assert(adapterDns.SequenceEqual(new[] { "9.9.9.9" }),
+            "TUN adapter DNS must use configured IP resolvers and ignore DoH URL entries.");
     }
     var tunValidation = new ProcessStartInfo(xray)
     {
