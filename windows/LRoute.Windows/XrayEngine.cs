@@ -234,19 +234,31 @@ public sealed class XrayEngine : IDisposable
                 {
                     // Xray must receive a graceful console break so it can remove
                     // its system routes, DNS changes, WFP filters, and Wintun device.
-                    SendConsoleBreak(process.Id);
-                    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
-                    try { await process.WaitForExitAsync(timeout.Token); }
-                    catch (OperationCanceledException)
+                    try { SendConsoleBreak(process.Id); }
+                    catch (Win32Exception) when (process.HasExited) { /* Exit won the race. */ }
+
+                    if (!process.HasExited)
                     {
-                        throw new InvalidOperationException(
-                            "Xray TUN did not shut down gracefully. It has been left running to avoid an unsafe forced termination; try disconnecting again.");
+                        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+                        try { await process.WaitForExitAsync(timeout.Token); }
+                        catch (OperationCanceledException)
+                        {
+                            throw new InvalidOperationException(
+                                "Xray TUN did not shut down gracefully. It has been left running to avoid an unsafe forced termination; try disconnecting again.");
+                        }
                     }
                 }
                 else
                 {
-                    process.Kill(entireProcessTree: true);
-                    await process.WaitForExitAsync();
+                    try
+                    {
+                        if (!process.HasExited) process.Kill(entireProcessTree: true);
+                        await process.WaitForExitAsync();
+                    }
+                    catch (InvalidOperationException) when (process.HasExited)
+                    {
+                        // The Exited callback may win the race with DisconnectAsync.
+                    }
                 }
             }
 
@@ -320,9 +332,24 @@ public sealed class XrayEngine : IDisposable
 
         using var process = Process.Start(start)
             ?? throw new InvalidOperationException("Could not start Xray-core configuration validation.");
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(token);
-        var stderrTask = process.StandardError.ReadToEndAsync(token);
-        await process.WaitForExitAsync(token);
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        try
+        {
+            await process.WaitForExitAsync(token);
+        }
+        catch
+        {
+            // Cancellation must not orphan the validator while its config file is
+            // being removed by the caller.
+            try
+            {
+                if (!process.HasExited) process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync();
+            }
+            catch { /* Keep the original validation/cancellation exception. */ }
+            throw;
+        }
         var output = (await stdoutTask) + Environment.NewLine + (await stderrTask);
         if (process.ExitCode != 0)
             throw new InvalidOperationException(
