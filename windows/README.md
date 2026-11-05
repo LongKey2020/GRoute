@@ -23,7 +23,7 @@ A clean Windows x64 rewrite of LRoute. The Android application remains the featu
 - Hysteria2, IKEv2 and other protocols requiring a separate runtime are not supported by this Xray-only build.
 - TUN mode is exposed as experimental opt-in only. CI validates generated TUN JSON with Xray, but route installation, DNS behavior, disconnect cleanup and leak protection have not been validated on physical Windows systems. Do not treat it as production-ready.
 - Windows System Proxy applies to WinINET-aware applications. It does not guarantee that WinHTTP services, every game, or applications with their own proxy/network stack will use LRoute.
-- Advanced DNS policies (fake DNS, encrypted DNS policy, ad-block lists), geo-based split routing, kill switch, per-app routing, SSH/SFTP, diagnostics, speed/stability tests, Warp/Tor/Windscribe/Aether integrations, backup/restore UI and the remaining Android tools are not yet ported. The current DNS setting replaces Xray DNS servers; current split routing supports user-entered domain bypass only.
+- Advanced DNS policies (fake DNS, encrypted DNS policy, ad-block lists), geo-based split routing, kill switch, per-app routing, SSH/SFTP, diagnostics, speed/stability tests, Warp/Tor/Windscribe/Aether integrations and the remaining Android tools are not yet ported. The current DNS setting replaces Xray DNS servers; current split routing supports user-entered domain bypass only.
 - Advanced Shadowsocks SIP002 plugins and uncommon subscription encodings still need compatibility testing.
 
 ## Build locally
