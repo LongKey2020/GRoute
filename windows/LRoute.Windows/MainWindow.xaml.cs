@@ -235,7 +235,7 @@ public partial class MainWindow : Window
         panel.Children.Add(dns);
         panel.Children.Add(new TextBlock
         {
-            Text = "Comma-separated IP addresses or HTTPS DNS endpoints, for example 1.1.1.1, 8.8.8.8 or https://dns.google/dns-query.",
+            Text = "Leave blank to keep the imported profile's DNS settings. Otherwise enter comma-separated IP addresses or HTTPS DNS endpoints, for example 1.1.1.1, 8.8.8.8 or https://dns.google/dns-query.",
             TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(Color.FromRgb(160, 167, 177)),
             Margin = new Thickness(0, 6, 0, 20)
