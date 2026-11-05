@@ -26,6 +26,8 @@ public static class RuntimeConfigOptions
                     throw new FormatException($"Invalid DNS server '{server}'. Use an IP address or HTTPS DNS URL.");
             }
 
+            if (root["dns"] is not null && root["dns"] is not JsonObject)
+                throw new InvalidDataException("Xray DNS configuration must be an object.");
             var dnsConfig = root["dns"] as JsonObject;
             if (dnsConfig is null)
             {
@@ -64,12 +66,16 @@ public static class RuntimeConfigOptions
             if (!hasDirect)
                 outbounds.Add(new JsonObject { ["tag"] = directTag, ["protocol"] = "freedom" });
 
+            if (root["routing"] is not null && root["routing"] is not JsonObject)
+                throw new InvalidDataException("Xray routing configuration must be an object.");
             var routing = root["routing"] as JsonObject;
             if (routing is null)
             {
                 routing = new JsonObject();
                 root["routing"] = routing;
             }
+            if (routing["rules"] is not null && routing["rules"] is not JsonArray)
+                throw new InvalidDataException("Xray routing rules must be an array.");
             var rules = routing["rules"] as JsonArray;
             if (rules is null)
             {
