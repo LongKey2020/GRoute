@@ -97,6 +97,41 @@ try
         "Unauthenticated HTTP proxy must not emit an empty users array.");
     Console.WriteLine("PASS: unauthenticated HTTP proxy config");
 
+    // Exercise the real Xray process lifecycle on Windows, not only JSON validation.
+    var lifecycleSocksPort = Random.Shared.Next(30000, 45000);
+    var lifecycleHttpPort = lifecycleSocksPort == 44999 ? 30001 : lifecycleSocksPort + 1;
+    var lifecycleConfigPath = Path.Combine(temp, "lifecycle.json");
+    await File.WriteAllTextAsync(lifecycleConfigPath,
+        RuntimeProfileBuilder.Build(unauthenticatedHttp[0], lifecycleSocksPort, lifecycleHttpPort));
+    using (var engine = new LRoute.Windows.XrayEngine(xray))
+    {
+        var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        engine.ProcessExited += (_, _) => exited.TrySetResult();
+        await engine.ConnectAsync(lifecycleConfigPath);
+        Assert(engine.IsRunning, "Xray engine must report running after a successful start.");
+
+        var duplicateStartRejected = false;
+        try { await engine.ConnectAsync(lifecycleConfigPath); }
+        catch (InvalidOperationException) { duplicateStartRejected = true; }
+        Assert(duplicateStartRejected, "A second ConnectAsync must not start a duplicate Xray process.");
+
+        await engine.DisconnectAsync();
+        await exited.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert(!engine.IsRunning, "Xray engine must report stopped after disconnect.");
+        Console.WriteLine("PASS: Xray process start, duplicate-start guard, exit event and graceful cleanup");
+    }
+
+    using (var engine = new LRoute.Windows.XrayEngine(xray))
+    using (var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(350)))
+    {
+        var cancelled = false;
+        try { await engine.ConnectAsync(lifecycleConfigPath, cancellationToken: cancellation.Token); }
+        catch (OperationCanceledException) { cancelled = true; }
+        Assert(cancelled, "Cancelling Xray startup should cancel ConnectAsync.");
+        Assert(!engine.IsRunning, "Cancelling Xray startup must not leave a child process running.");
+        Console.WriteLine("PASS: Xray startup cancellation cleanup");
+    }
+
     const string internetSettingsPath = @"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
     var manager = new SystemProxyManager();
     manager.RecoverPreviousSession();
