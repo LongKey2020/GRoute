@@ -607,115 +607,183 @@ public partial class MainWindow : Window
 
     private void Overview_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Overview"; PageSubtitle.Text = "Route WinINET-aware apps through your selected Xray profile."; }
     private void Profiles_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Profiles"; PageSubtitle.Text = "Import and manage Xray-compatible profiles."; }
+
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new Window
         {
-            Title = "LRoute • Connection settings",
-            Owner = this,
-            Width = 650,
-            Height = 620,
-            MinWidth = 560,
-            MinHeight = 520,
+            Title = "LRoute • Settings",
+            Owner = this, Width = 820, Height = 760, MinWidth = 680, MinHeight = 600,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Background = new SolidColorBrush(Color.FromRgb(25, 27, 31)),
-            Foreground = Brushes.White
+            Background = new SolidColorBrush(Color.FromRgb(10, 10, 10)), Foreground = Brushes.White
         };
-        var panel = new StackPanel { Margin = new Thickness(22) };
-        panel.Children.Add(new TextBlock
+        var root = new StackPanel { Margin = new Thickness(22) };
+        root.Children.Add(new TextBlock { Text = "Settings", FontSize = 28, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,0,0,18) });
+        var muted = new SolidColorBrush(Color.FromRgb(174,174,174));
+        var cardBrush = new SolidColorBrush(Color.FromRgb(25,25,25));
+        var lineBrush = new SolidColorBrush(Color.FromRgb(72,72,72));
+        Border Card(string title, string description)
         {
-            Text = "CONNECTION MODE",
-            FontSize = 11,
-            FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Color.FromRgb(242, 138, 53)),
-            Margin = new Thickness(0, 0, 0, 10)
+            var body = new StackPanel { Margin = new Thickness(16) };
+            body.Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeights.SemiBold });
+            if (!string.IsNullOrWhiteSpace(description))
+                body.Children.Add(new TextBlock { Text = description, Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,4,0,12) });
+            var border = new Border { Background = cardBrush, BorderBrush = lineBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Margin = new Thickness(0,0,0,12), Child = body };
+            root.Children.Add(border);
+            return border;
+        }
+        TextBlock Label(string text) => new() { Text = text, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,8,0,5) };
+        TextBox Field(string value, int height = 38) => new()
+        {
+            Text = value, Height = height, Padding = new Thickness(10,8,10,8),
+            Background = new SolidColorBrush(Color.FromRgb(13,13,13)), Foreground = Brushes.White,
+            BorderBrush = lineBrush, CaretBrush = Brushes.White
+        };
+        Button Action(string text, RoutedEventHandler click)
+        {
+            var button = new Button { Content = text, Height = 38, Margin = new Thickness(0,8,8,0), Background = new SolidColorBrush(Color.FromRgb(35,35,35)), BorderBrush = lineBrush };
+            button.Click += click; return button;
+        }
+        string FormatBytes(long value)
+        {
+            string[] units = ["B","KB","MB","GB","TB"]; double n = Math.Max(0,value); var i=0;
+            while(n>=1024 && i<units.Length-1){n/=1024;i++;}
+            return n.ToString("0.##") + " " + units[i];
+        }
+
+        // DATA USAGE: subscription quota metadata, not a fabricated live network counter.
+        var usage = Card("◷  Data usage", "Subscription usage reported by your provider. This is not a live Windows adapter traffic counter.");
+        var usageBody = (StackPanel)usage.Child;
+        var subscriptions = _profiles.Where(p => !string.IsNullOrWhiteSpace(p.SubscriptionUrl))
+            .GroupBy(p => p.SubscriptionUrl, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToArray();
+        long used = subscriptions.Sum(p => p.SubscriptionUsedBytes);
+        long quota = subscriptions.Sum(p => p.SubscriptionTotalBytes);
+        usageBody.Children.Add(new TextBlock { Text = "Reported usage: " + FormatBytes(used) + (quota > 0 ? " / " + FormatBytes(quota) : ""), FontSize = 22, FontWeight = FontWeights.SemiBold });
+        usageBody.Children.Add(new TextBlock { Text = subscriptions.Length + " subscription(s) • " + _profiles.Count + " saved profile(s)", Foreground = muted, Margin = new Thickness(0,5,0,0) });
+        foreach (var profile in subscriptions.Take(8))
+            usageBody.Children.Add(new TextBlock { Text = profile.GroupName + "   " + profile.SubscriptionUsageLabel + "   " + profile.SubscriptionExpiryLabel, Foreground = muted, Margin = new Thickness(0,7,0,0), TextWrapping = TextWrapping.Wrap });
+
+        // NETWORK RADAR
+        var radar = Card("◉  Network Radar", "Check whether selected HTTPS websites respond from this Windows network. A failure can mean DNS, routing, firewall or remote outage; it does not prove censorship.");
+        var radarBody = (StackPanel)radar.Child;
+        radarBody.Children.Add(Label("Hosts / websites (one per line)"));
+        var hosts = Field("https://www.google.com\nhttps://www.cloudflare.com\nhttps://github.com", 92);
+        hosts.AcceptsReturn = true; hosts.TextWrapping = TextWrapping.Wrap; hosts.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+        radarBody.Children.Add(hosts);
+        var radarResult = new TextBlock { Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,8,0,0) };
+        var radarButton = Action("Run network radar", async (_, _) =>
+        {
+            radarButtonEnabled(false);
+            try
+            {
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                var output = new List<string>();
+                foreach (var raw in hosts.Text.Split(new[] {'\r','\n'}, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    var target = raw.Contains("://", StringComparison.Ordinal) ? raw : "https://" + raw;
+                    if (!Uri.TryCreate(target, UriKind.Absolute, out var uri) || uri.Scheme != "https") { output.Add(raw + " — invalid HTTPS URL"); continue; }
+                    try { using var response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead); output.Add(uri.Host + " — HTTP " + (int)response.StatusCode); }
+                    catch (Exception ex) { output.Add(uri.Host + " — no response (" + ex.GetBaseException().Message + ")"); }
+                }
+                radarResult.Text = string.Join(Environment.NewLine, output);
+            }
+            finally { radarButtonEnabled(true); }
         });
-        var tun = new CheckBox
+        void radarButtonEnabled(bool enabled) { radarButton.IsEnabled = enabled; radarButton.Content = enabled ? "Run network radar" : "Checking..."; }
+        radarBody.Children.Add(radarButton); radarBody.Children.Add(radarResult);
+
+        // TOOLS
+        var tools = Card("🔧  Tools", "Quick diagnostics for the selected server and a host.");
+        var toolsBody = (StackPanel)tools.Child;
+        var hostRow = new DockPanel();
+        var hostInput = Field("example.com");
+        var hostButton = Action("Check host", async (_, _) =>
         {
-            Content = "EXPERIMENTAL: use full-device TUN mode (requires administrator approval)",
-            IsChecked = _settings.UseTunMode,
-            Foreground = Brushes.White,
-            Margin = new Thickness(0, 0, 0, 8)
-        };
-        panel.Children.Add(tun);
-        panel.Children.Add(new TextBlock
-        {
-            Text = "TUN routes device traffic through the Wintun adapter and requests administrator approval. This mode has automated config tests but still needs physical Windows route, DNS and disconnect testing. If disabled, LRoute uses the Windows system proxy for WinINET-aware applications.",
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = new SolidColorBrush(Color.FromRgb(160, 167, 177)),
-            Margin = new Thickness(0, 0, 0, 20)
+            var host = hostInput.Text.Trim();
+            if (string.IsNullOrWhiteSpace(host)) return;
+            try
+            {
+                var addresses = await System.Net.Dns.GetHostAddressesAsync(host);
+                toolsResult.Text = host + " resolves to: " + string.Join(", ", addresses.Select(a => a.ToString()));
+                using var tcp = new System.Net.Sockets.TcpClient();
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+                await tcp.ConnectAsync(host, 443, timeout.Token);
+                toolsResult.Text += Environment.NewLine + "TCP 443: reachable";
+            }
+            catch (Exception ex) { toolsResult.Text = host + " — " + ex.GetBaseException().Message; }
         });
-        panel.Children.Add(new TextBlock { Text = "DNS SERVERS", FontWeight = FontWeights.Bold, FontSize = 11, Margin = new Thickness(0, 0, 0, 7) });
-        var dns = new TextBox
+        DockPanel.SetDock(hostButton, Dock.Right); hostRow.Children.Add(hostButton); hostRow.Children.Add(hostInput);
+        toolsBody.Children.Add(Label("Check host (DNS + TCP/443)")); toolsBody.Children.Add(hostRow);
+        var toolsResult = new TextBlock { Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,8,0,0) };
+        toolsBody.Children.Add(toolsResult);
+        var toolButtons = new WrapPanel();
+        toolButtons.Children.Add(Action("Connection quality test", (_,_) => NetworkTest_Click(this, new RoutedEventArgs())));
+        toolButtons.Children.Add(Action("Smart connect (fastest ping)", async (_,_) =>
         {
-            Text = _settings.DnsServers,
-            Height = 38,
-            Padding = new Thickness(10, 8, 10, 8),
-            Background = new SolidColorBrush(Color.FromRgb(16, 17, 19)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(58, 64, 73))
-        };
-        panel.Children.Add(dns);
-        panel.Children.Add(new TextBlock
-        {
-            Text = "Leave blank to keep the imported profile's DNS settings. Otherwise enter comma-separated IP addresses or HTTPS DNS endpoints, for example 1.1.1.1, 8.8.8.8 or https://dns.google/dns-query.",
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = new SolidColorBrush(Color.FromRgb(160, 167, 177)),
-            Margin = new Thickness(0, 6, 0, 20)
-        });
-        panel.Children.Add(new TextBlock { Text = "BYPASS DOMAINS (SPLIT ROUTING)", FontWeight = FontWeights.Bold, FontSize = 11, Margin = new Thickness(0, 0, 0, 7) });
-        var bypass = new TextBox
-        {
-            Text = _settings.BypassDomains,
-            Height = 150,
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.Wrap,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Padding = new Thickness(10),
-            Background = new SolidColorBrush(Color.FromRgb(16, 17, 19)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(58, 64, 73)),
-            FontFamily = new FontFamily("Consolas")
-        };
-        panel.Children.Add(bypass);
-        panel.Children.Add(new TextBlock
-        {
-            Text = "One domain per line. Matching domains bypass the proxy and use the direct connection. Example: example.com or *.example.org.",
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = new SolidColorBrush(Color.FromRgb(160, 167, 177)),
-            Margin = new Thickness(0, 6, 0, 18)
-        });
-        var save = new Button
-        {
-            Content = "SAVE SETTINGS",
-            Height = 42,
-            Background = new SolidColorBrush(Color.FromRgb(242, 138, 53)),
-            Foreground = Brushes.Black,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(242, 138, 53))
-        };
-        save.Click += (_, _) =>
+            if (_engine.IsRunning) { MessageBox.Show(dialog,"Disconnect before changing the active profile."); return; }
+            var candidates = _profiles.Where(p => !string.IsNullOrWhiteSpace(GetProbeHost(p))).ToArray();
+            var measured = new List<(ProxyProfile Profile,long Ms)>();
+            foreach (var profile in candidates)
+            {
+                try { using var ping = new Ping(); var reply = await ping.SendPingAsync(GetProbeHost(profile),1200); if(reply.Status==IPStatus.Success) measured.Add((profile,reply.RoundtripTime)); } catch { }
+            }
+            var best = measured.OrderBy(x=>x.Ms).FirstOrDefault();
+            if (best.Profile is null) { MessageBox.Show(dialog,"No server responded to ICMP Ping. Some servers block Ping."); return; }
+            ProfilesList.SelectedItem = best.Profile; RefreshUi();
+            MessageBox.Show(dialog,"Selected " + best.Profile.Name + " (" + best.Ms + " ms). Connect when ready. ICMP is only a reachability estimate.","Smart connect");
+        }));
+        toolButtons.Children.Add(Action("Adblocker status", (_,_) => MessageBox.Show(dialog,"DNS/ad-block filtering is not implemented in this Windows runtime yet. No filtering is being applied.","Adblocker",MessageBoxButton.OK,MessageBoxImage.Information)));
+        toolsBody.Children.Add(toolButtons);
+
+        // CONNECTION SETTINGS
+        var connection = Card("▣  Connection settings", "Routing, DNS and split tunneling options.");
+        var connectionBody = (StackPanel)connection.Child;
+        var tun = new CheckBox { Content = "Experimental full-device TUN mode (administrator approval)", IsChecked = _settings.UseTunMode, Foreground = Brushes.White, Margin = new Thickness(0,4,0,8) };
+        connectionBody.Children.Add(tun);
+        connectionBody.Children.Add(new TextBlock { Text = "TUN mode requires physical route, DNS and disconnect testing. System proxy mode only affects WinINET-aware applications.", Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,10) });
+        var kill = new CheckBox { Content = "Kill switch — not available in this build", IsEnabled = false, Foreground = muted, Margin = new Thickness(0,4,0,4) };
+        var perApp = new CheckBox { Content = "Per-app proxy — not available in this build", IsEnabled = false, Foreground = muted, Margin = new Thickness(0,4,0,10) };
+        connectionBody.Children.Add(kill); connectionBody.Children.Add(perApp);
+        connectionBody.Children.Add(Label("DNS servers (comma-separated IP or HTTPS DNS URL)"));
+        var dns = Field(_settings.DnsServers); connectionBody.Children.Add(dns);
+        connectionBody.Children.Add(Label("Bypass domains (one per line)"));
+        var bypass = Field(_settings.BypassDomains, 92); bypass.AcceptsReturn = true; bypass.TextWrapping = TextWrapping.Wrap; connectionBody.Children.Add(bypass);
+
+        // PREFERENCES
+        var preferences = Card("☷  Preferences", "Application appearance, language and subscription maintenance.");
+        var prefBody = (StackPanel)preferences.Child;
+        var themeRow = new DockPanel(); themeRow.Children.Add(Label("Theme")); var theme = new ComboBox { Width=150, SelectedIndex=0, ItemsSource=new[]{"Dark"} }; DockPanel.SetDock(theme,Dock.Right); themeRow.Children.Add(theme); prefBody.Children.Add(themeRow);
+        var languageRow = new DockPanel(); languageRow.Children.Add(Label("Language")); var language = new ComboBox { Width=150, SelectedIndex=0, ItemsSource=new[]{"English"} }; DockPanel.SetDock(language,Dock.Right); languageRow.Children.Add(language); prefBody.Children.Add(languageRow);
+        prefBody.Children.Add(new TextBlock { Text = "Dark theme and English UI are currently available. Additional themes and translations are not enabled yet.", Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,4,0,8) });
+        prefBody.Children.Add(Action("Refresh selected subscription now", (_,_) => RefreshSubscription_Click(this,new RoutedEventArgs())));
+
+        // ABOUT
+        var about = Card("ⓘ  About", "LRoute for Windows");
+        var aboutBody = (StackPanel)about.Child;
+        var version = typeof(MainWindow).Assembly.GetName().Version?.ToString() ?? "Development";
+        aboutBody.Children.Add(new TextBlock { Text = "Version " + version, FontSize = 15, FontWeight = FontWeights.SemiBold });
+        aboutBody.Children.Add(new TextBlock { Text = "Developer: LongKey2020\nRuntime: Xray-core Windows x64\nPrivacy: profiles are stored in the local Windows user profile; profile vault protection uses Windows DPAPI.", Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,6,0,0) });
+
+        // BACKUP / RESTORE
+        var backupRow = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0,4,0,12) };
+        backupRow.Children.Add(Action("⇧  Create backup", Backup_Click));
+        backupRow.Children.Add(Action("⇩  Restore backup", RestoreBackup_Click));
+        root.Children.Add(backupRow);
+        var save = new Button { Content = "SAVE CONNECTION SETTINGS", Height = 44, Background = new SolidColorBrush(Color.FromRgb(242,138,53)), Foreground = Brushes.Black, BorderBrush = new SolidColorBrush(Color.FromRgb(242,138,53)), Margin = new Thickness(0,0,0,12) };
+        save.Click += (_,_) =>
         {
             try
             {
-                var next = new LRouteUserSettings
-                {
-                    UseTunMode = tun.IsChecked == true,
-                    DnsServers = dns.Text.Trim(),
-                    BypassDomains = bypass.Text.Trim()
-                };
+                var next = _settings with { UseTunMode=tun.IsChecked==true, DnsServers=dns.Text.Trim(), BypassDomains=bypass.Text.Trim(), Theme="Dark", Language="English" };
                 const string validationConfig = """{"outbounds":[{"tag":"proxy","protocol":"freedom"},{"tag":"direct","protocol":"freedom"}],"routing":{"rules":[{"type":"field","outboundTag":"proxy"}]}}""";
-                RuntimeConfigOptions.Apply(validationConfig, next.DnsServers, next.BypassDomains);
-                next.Save();
-                _settings = next;
-                dialog.Close();
+                RuntimeConfigOptions.Apply(validationConfig,next.DnsServers,next.BypassDomains);
+                next.Save(); _settings=next;
+                MessageBox.Show(dialog,"Connection settings saved. Reconnect for changes to affect the running tunnel.","Settings saved",MessageBoxButton.OK,MessageBoxImage.Information);
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show(dialog, ex.Message, "Invalid connection settings", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+            catch(Exception ex){MessageBox.Show(dialog,ex.Message,"Invalid settings",MessageBoxButton.OK,MessageBoxImage.Warning);}
         };
-        panel.Children.Add(save);
-        dialog.Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        root.Children.Add(save);
+        dialog.Content = new ScrollViewer { Content=root, VerticalScrollBarVisibility=ScrollBarVisibility.Auto };
         dialog.ShowDialog();
     }
 
