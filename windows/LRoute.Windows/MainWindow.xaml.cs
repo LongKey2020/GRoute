@@ -61,11 +61,16 @@ public partial class MainWindow : Window
             try
             {
                 var source = await File.ReadAllTextAsync(file);
+                var subscriptionUrl = GetSubscriptionUrl(source);
                 source = await FetchSubscriptionIfUrlAsync(source);
                 var result = ProxyLinkParser.ParseManyDetailed(source);
                 foreach (var profile in result.Profiles)
                 {
-                    _profiles.Add(profile with { Name = profile.Name == "New profile" ? Path.GetFileNameWithoutExtension(file) : profile.Name });
+                    _profiles.Add(profile with
+                    {
+                        Name = profile.Name == "New profile" ? Path.GetFileNameWithoutExtension(file) : profile.Name,
+                        SubscriptionUrl = subscriptionUrl ?? ""
+                    });
                     added++;
                 }
                 importErrors.AddRange(result.Errors.Select(error => $"{Path.GetFileName(file)}: {error}"));
@@ -77,6 +82,56 @@ public partial class MainWindow : Window
         if (importErrors.Count > 0) ShowImportErrors(importErrors);
         if (added == 0 && importErrors.Count == 0)
             MessageBox.Show(this, "No supported Xray profiles were found. WireGuard and QR import are not included.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private async void RefreshSubscription_Click(object sender, RoutedEventArgs e)
+    {
+        if (_engine.IsRunning)
+        {
+            MessageBox.Show(this, "Disconnect before refreshing a subscription.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (ProfilesList.SelectedItem is not ProxyProfile selected ||
+            string.IsNullOrWhiteSpace(selected.SubscriptionUrl))
+        {
+            MessageBox.Show(this, "Select a profile that was imported from a subscription URL.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            var url = selected.SubscriptionUrl;
+            var content = await _subscriptions.GetContentAsync(url);
+            var result = ProxyLinkParser.ParseManyDetailed(content);
+            if (result.Profiles.Count == 0)
+                throw new FormatException(result.Errors.Count > 0
+                    ? string.Join(Environment.NewLine, result.Errors)
+                    : "The subscription returned no supported profiles.");
+
+            var oldProfiles = _profiles
+                .Where(profile => string.Equals(profile.SubscriptionUrl, url, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            var insertIndex = oldProfiles.Length > 0 ? _profiles.IndexOf(oldProfiles[0]) : _profiles.IndexOf(selected);
+            foreach (var oldProfile in oldProfiles) _profiles.Remove(oldProfile);
+
+            var refreshed = result.Profiles.Select(profile => profile with
+            {
+                SubscriptionUrl = url
+            }).ToArray();
+            for (var i = 0; i < refreshed.Length; i++)
+                _profiles.Insert(Math.Clamp(insertIndex + i, 0, _profiles.Count), refreshed[i]);
+
+            Persist();
+            ProfilesList.SelectedItem = refreshed[0];
+            RefreshUi();
+            if (result.Errors.Count > 0) ShowImportErrors(result.Errors);
+            MessageBox.Show(this, $"Subscription refreshed: {refreshed.Length} profile(s).",
+                "Refresh complete", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Subscription refresh failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void Export_Click(object sender, RoutedEventArgs e)
@@ -131,13 +186,15 @@ public partial class MainWindow : Window
         {
             try
             {
+                var subscriptionUrl = GetSubscriptionUrl(input.Text);
                 var source = await FetchSubscriptionIfUrlAsync(input.Text);
                 var result = ProxyLinkParser.ParseManyDetailed(source);
                 if (result.Profiles.Count == 0)
                     throw new FormatException(result.Errors.Count > 0
                         ? string.Join(Environment.NewLine, result.Errors)
                         : "No supported VLESS, VMess, Trojan, Shadowsocks, SOCKS or HTTP profile was found.");
-                foreach (var profile in result.Profiles) _profiles.Add(profile);
+                foreach (var profile in result.Profiles)
+                    _profiles.Add(profile with { SubscriptionUrl = subscriptionUrl ?? "" });
                 Persist(); RefreshUi(); editor.Close();
                 if (result.Errors.Count > 0) ShowImportErrors(result.Errors);
             }
@@ -378,13 +435,19 @@ public partial class MainWindow : Window
             "Import completed with warnings", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
-    private async Task<string> FetchSubscriptionIfUrlAsync(string value)
+    private static string? GetSubscriptionUrl(string value)
     {
         var candidate = value.Trim();
-        if (Uri.TryCreate(candidate, UriKind.Absolute, out var uri) &&
-            (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp))
-            return await _subscriptions.GetContentAsync(candidate);
-        return value;
+        return Uri.TryCreate(candidate, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp)
+            ? candidate
+            : null;
+    }
+
+    private async Task<string> FetchSubscriptionIfUrlAsync(string value)
+    {
+        var url = GetSubscriptionUrl(value);
+        return url is not null ? await _subscriptions.GetContentAsync(url) : value;
     }
 
     private void Persist()
