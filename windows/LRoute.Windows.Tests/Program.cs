@@ -422,8 +422,18 @@ try
         {
             Name = "dpapi-roundtrip-test", Protocol = "vless", Server = "profile-test.invalid",
             Port = 443, UserId = "11111111-1111-4111-8111-111111111111",
-            SubscriptionUrl = "https://subscriptions.example/profile-list"
+            SubscriptionUrl = "https://subscriptions.example/profile-list",
+            SubscriptionUploadBytes = 1024, SubscriptionDownloadBytes = 2048,
+            SubscriptionTotalBytes = 10240, SubscriptionExpiresAt = 2000000000,
+            SubscriptionLastUpdated = 1760000000000
         };
+        Assert(testProfile.SubscriptionUsedBytes == 3072 &&
+            testProfile.SubscriptionUsageLabel.Contains("3 KB") &&
+            testProfile.SubscriptionExpiryLabel.StartsWith("Expires ") &&
+            testProfile.SubscriptionUpdatedLabel != "Not refreshed",
+            "Subscription quota, expiry and last-refresh labels must be calculated from persisted metadata.");
+        Assert(new SubscriptionUserInfo(100, 200, 1000, 2000000000).UsedBytes == 300,
+            "Subscription user-info used bytes must equal upload plus download.");
         profileStore.Save([testProfile]);
         var encryptedBytes = File.ReadAllBytes(encryptedProfilesPath);
         Assert(!Encoding.UTF8.GetString(encryptedBytes).Contains(testProfile.Name, StringComparison.Ordinal),
@@ -431,7 +441,12 @@ try
         var roundTrip = profileStore.Load();
         Assert(roundTrip.Count == 1 && roundTrip[0].Name == testProfile.Name &&
             roundTrip[0].UserId == testProfile.UserId &&
-            roundTrip[0].SubscriptionUrl == testProfile.SubscriptionUrl,
+            roundTrip[0].SubscriptionUrl == testProfile.SubscriptionUrl &&
+            roundTrip[0].SubscriptionUploadBytes == 1024 &&
+            roundTrip[0].SubscriptionDownloadBytes == 2048 &&
+            roundTrip[0].SubscriptionTotalBytes == 10240 &&
+            roundTrip[0].SubscriptionExpiresAt == 2000000000 &&
+            roundTrip[0].SubscriptionLastUpdated == 1760000000000,
             "DPAPI profile save/load round trip must preserve credentials and subscription source metadata.");
         var backupPath = Path.Combine(temp, "profiles.lroute");
         profileStore.ExportBackup(backupPath, roundTrip);
@@ -440,7 +455,9 @@ try
         var backupProfiles = profileStore.ImportBackup(backupPath);
         Assert(backupProfiles.Count == 1 &&
             backupProfiles[0].SubscriptionUrl == testProfile.SubscriptionUrl &&
-            backupProfiles[0].UserId == testProfile.UserId,
+            backupProfiles[0].UserId == testProfile.UserId &&
+            backupProfiles[0].SubscriptionTotalBytes == testProfile.SubscriptionTotalBytes &&
+            backupProfiles[0].SubscriptionExpiresAt == testProfile.SubscriptionExpiresAt,
             "Encrypted profile backup/restore must preserve profile and subscription metadata.");
         Console.WriteLine("PASS: DPAPI encrypted profile backup and restore");
 
