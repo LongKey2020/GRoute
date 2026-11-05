@@ -14,6 +14,7 @@ public sealed class ProfileStore
 {
     private const string EntropyText = "LRoute.ProfileStore.v1";
     private static readonly byte[] Entropy = Encoding.UTF8.GetBytes(EntropyText);
+    private static readonly byte[] BackupEntropy = Encoding.UTF8.GetBytes("LRoute.Backup.v1");
 
     private readonly string _folder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -66,6 +67,49 @@ public sealed class ProfileStore
         }
 
         return [];
+    }
+
+    public void ExportBackup(string path, IEnumerable<ProxyProfile> profiles)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(profiles);
+
+        var plaintext = JsonSerializer.SerializeToUtf8Bytes(profiles, _options);
+        var encrypted = ProtectedData.Protect(plaintext, BackupEntropy, DataProtectionScope.CurrentUser);
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath)!;
+        Directory.CreateDirectory(directory);
+        var tempPath = fullPath + ".tmp";
+        try
+        {
+            File.WriteAllBytes(tempPath, encrypted);
+            File.Move(tempPath, fullPath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+            CryptographicOperations.ZeroMemory(plaintext);
+        }
+    }
+
+    public IReadOnlyList<ProxyProfile> ImportBackup(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var encrypted = File.ReadAllBytes(path);
+        var plaintext = ProtectedData.Unprotect(encrypted, BackupEntropy, DataProtectionScope.CurrentUser);
+        try
+        {
+            return JsonSerializer.Deserialize<List<ProxyProfile>>(plaintext, _options)
+                ?? throw new InvalidDataException("The LRoute backup does not contain a profile list.");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException("The LRoute backup is invalid or corrupted.", ex);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext);
+        }
     }
 
     public void Save(IEnumerable<ProxyProfile> profiles)
