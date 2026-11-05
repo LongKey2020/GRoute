@@ -19,6 +19,8 @@ public sealed record LRouteUserSettings
     public string Language { get; init; } = "English";
     public bool AutoRefreshSubscriptions { get; init; }
     public int SubscriptionRefreshMinutes { get; init; } = 60;
+    public bool AdBlockEnabled { get; init; }
+    public string BlockedDomains { get; init; } = "doubleclick.net, googlesyndication.com, google-analytics.com, adservice.google.com, app-measurement.com, scorecardresearch.com";
 
     public static LRouteUserSettings Load()
     {
