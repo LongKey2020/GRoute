@@ -190,6 +190,11 @@ public static class RuntimeConfigOptions
                 {
                     ["type"] = "field",
                     ["domain"] = new JsonArray("geosite:ir"),
+                    ["outboundTag"] = directTag
+                });
+                iranRules.Insert(insertAt + 1, new JsonObject
+                {
+                    ["type"] = "field",
                     ["ip"] = new JsonArray("geoip:ir"),
                     ["outboundTag"] = directTag
                 });
