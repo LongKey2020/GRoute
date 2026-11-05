@@ -201,6 +201,14 @@ try
             "FakeDNS must configure the reserved fake IP pool.");
         Assert(root.GetProperty("dns").GetProperty("servers")[0].GetString() == "fakedns",
             "FakeDNS must be the first DNS server.");
+        Assert(root.GetProperty("outbounds").EnumerateArray().Any(item =>
+            item.TryGetProperty("protocol", out var protocol) && protocol.GetString() == "dns"),
+            "FakeDNS must have an Xray DNS outbound.");
+        Assert(root.GetProperty("routing").GetProperty("rules").EnumerateArray().Any(rule =>
+            rule.TryGetProperty("inboundTag", out var inboundTags) &&
+            inboundTags.EnumerateArray().Any(tag => tag.GetString() == "lroute-tun-in") &&
+            rule.TryGetProperty("port", out var port) && port.ToString() == "53"),
+            "TUN DNS requests must route to the Xray DNS outbound for FakeDNS.");
         Assert(root.GetProperty("dns").GetProperty("disableFallback").GetBoolean(),
             "Encrypted DNS must disable plain DNS fallback.");
         Assert(root.GetProperty("dns").GetProperty("servers")[1].GetString() == "https+local://1.1.1.1/dns-query",
