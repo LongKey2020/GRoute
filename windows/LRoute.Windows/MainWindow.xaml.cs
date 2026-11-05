@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using LRoute.Windows.Domain;
 using LRoute.Windows.Infrastructure;
 
@@ -21,6 +22,8 @@ public partial class MainWindow : Window
     private readonly XrayEngine _engine = new();
     private readonly SystemProxyManager _systemProxy = new();
     private readonly SubscriptionFetcher _subscriptions = new();
+    private readonly DispatcherTimer _subscriptionRefreshTimer = new();
+    private bool _subscriptionRefreshInProgress;
     private LRouteUserSettings _settings = LRouteUserSettings.Load();
     private ProxyProfile? _active;
     private bool _storeReady = true;
@@ -57,6 +60,35 @@ public partial class MainWindow : Window
                 "Profile storage unavailable", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         RefreshUi();
+        ConfigureSubscriptionRefreshTimer();
+    }
+
+    private void ConfigureSubscriptionRefreshTimer()
+    {
+        _subscriptionRefreshTimer.Stop();
+        _subscriptionRefreshTimer.Tick -= SubscriptionRefreshTimer_Tick;
+        if (!_settings.AutoRefreshSubscriptions) return;
+        _subscriptionRefreshTimer.Interval = TimeSpan.FromMinutes(Math.Clamp(_settings.SubscriptionRefreshMinutes, 15, 1440));
+        _subscriptionRefreshTimer.Tick += SubscriptionRefreshTimer_Tick;
+        _subscriptionRefreshTimer.Start();
+    }
+
+    private async void SubscriptionRefreshTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_subscriptionRefreshInProgress || _engine.IsRunning) return;
+        _subscriptionRefreshInProgress = true;
+        try
+        {
+            var urls = _profiles.Select(p => p.SubscriptionUrl)
+                .Where(url => !string.IsNullOrWhiteSpace(url))
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            foreach (var url in urls)
+            {
+                try { await RefreshSubscriptionAsync(url); }
+                catch { /* Keep the app running; a failed provider is retried at the next interval. */ }
+            }
+        }
+        finally { _subscriptionRefreshInProgress = false; }
     }
 
     private async void Import_Click(object sender, RoutedEventArgs e)
@@ -106,57 +138,52 @@ public partial class MainWindow : Window
             MessageBox.Show(this, "Disconnect before refreshing a subscription.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        if (ProfilesList.SelectedItem is not ProxyProfile selected ||
-            string.IsNullOrWhiteSpace(selected.SubscriptionUrl))
+        if (ProfilesList.SelectedItem is not ProxyProfile selected || string.IsNullOrWhiteSpace(selected.SubscriptionUrl))
         {
             MessageBox.Show(this, "Select a profile that was imported from a subscription URL.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-
         try
         {
-            var url = selected.SubscriptionUrl;
-            var fetched = await _subscriptions.FetchAsync(url);
-            var result = ProxyLinkParser.ParseManyDetailed(fetched.Content);
-            if (result.Profiles.Count == 0)
-                throw new FormatException(result.Errors.Count > 0
-                    ? string.Join(Environment.NewLine, result.Errors)
-                    : "The subscription returned no supported profiles.");
-
-            var oldProfiles = _profiles
-                .Where(profile => string.Equals(profile.SubscriptionUrl, url, StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-            var insertIndex = oldProfiles.Length > 0 ? _profiles.IndexOf(oldProfiles[0]) : _profiles.IndexOf(selected);
-            foreach (var oldProfile in oldProfiles) _profiles.Remove(oldProfile);
-
-            var previousMetadata = oldProfiles.FirstOrDefault(profile =>
-                profile.SubscriptionTotalBytes > 0 || profile.SubscriptionExpiresAt > 0 ||
-                profile.SubscriptionUploadBytes > 0 || profile.SubscriptionDownloadBytes > 0);
-            var info = fetched.UserInfo;
-            var refreshedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var refreshed = result.Profiles.Select(profile => profile with
-            {
-                SubscriptionUrl = url,
-                SubscriptionUploadBytes = info?.UploadBytes ?? previousMetadata?.SubscriptionUploadBytes ?? 0,
-                SubscriptionDownloadBytes = info?.DownloadBytes ?? previousMetadata?.SubscriptionDownloadBytes ?? 0,
-                SubscriptionTotalBytes = info?.TotalBytes ?? previousMetadata?.SubscriptionTotalBytes ?? 0,
-                SubscriptionExpiresAt = info?.ExpiresAt ?? previousMetadata?.SubscriptionExpiresAt ?? 0,
-                SubscriptionLastUpdated = refreshedAt
-            }).ToArray();
-            for (var i = 0; i < refreshed.Length; i++)
-                _profiles.Insert(Math.Clamp(insertIndex + i, 0, _profiles.Count), refreshed[i]);
-
-            Persist();
-            ProfilesList.SelectedItem = refreshed[0];
-            RefreshUi();
-            if (result.Errors.Count > 0) ShowImportErrors(result.Errors);
-            MessageBox.Show(this, $"Subscription refreshed: {refreshed.Length} profile(s).",
-                "Refresh complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            var count = await RefreshSubscriptionAsync(selected.SubscriptionUrl);
+            MessageBox.Show(this, $"Subscription refreshed: {count} profile(s).", "Refresh complete", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
             MessageBox.Show(this, ex.Message, "Subscription refresh failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private async Task<int> RefreshSubscriptionAsync(string url)
+    {
+        var fetched = await _subscriptions.FetchAsync(url);
+        var result = ProxyLinkParser.ParseManyDetailed(fetched.Content);
+        if (result.Profiles.Count == 0)
+            throw new FormatException(result.Errors.Count > 0 ? string.Join(Environment.NewLine, result.Errors) : "The subscription returned no supported profiles.");
+        var oldProfiles = _profiles.Where(profile => string.Equals(profile.SubscriptionUrl, url, StringComparison.OrdinalIgnoreCase)).ToArray();
+        var insertIndex = oldProfiles.Length > 0 ? _profiles.IndexOf(oldProfiles[0]) : _profiles.Count;
+        var previousMetadata = oldProfiles.FirstOrDefault(profile =>
+            profile.SubscriptionTotalBytes > 0 || profile.SubscriptionExpiresAt > 0 ||
+            profile.SubscriptionUploadBytes > 0 || profile.SubscriptionDownloadBytes > 0);
+        foreach (var oldProfile in oldProfiles) _profiles.Remove(oldProfile);
+        var info = fetched.UserInfo;
+        var refreshedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var refreshed = result.Profiles.Select(profile => profile with
+        {
+            SubscriptionUrl = url,
+            SubscriptionUploadBytes = info?.UploadBytes ?? previousMetadata?.SubscriptionUploadBytes ?? 0,
+            SubscriptionDownloadBytes = info?.DownloadBytes ?? previousMetadata?.SubscriptionDownloadBytes ?? 0,
+            SubscriptionTotalBytes = info?.TotalBytes ?? previousMetadata?.SubscriptionTotalBytes ?? 0,
+            SubscriptionExpiresAt = info?.ExpiresAt ?? previousMetadata?.SubscriptionExpiresAt ?? 0,
+            SubscriptionLastUpdated = refreshedAt
+        }).ToArray();
+        for (var i = 0; i < refreshed.Length; i++)
+            _profiles.Insert(Math.Clamp(insertIndex + i, 0, _profiles.Count), refreshed[i]);
+        Persist();
+        _profilesView?.Refresh();
+        RefreshUi();
+        if (result.Errors.Count > 0 && !_subscriptionRefreshTimer.IsEnabled) ShowImportErrors(result.Errors);
+        return refreshed.Length;
     }
 
     private void Export_Click(object sender, RoutedEventArgs e)
