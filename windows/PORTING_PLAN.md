@@ -61,3 +61,24 @@ Separate UI, application state, persistence, protocol/config domain, and runtime
 7. Test each workflow on a real Windows machine; never label a placeholder as complete.
 
 A feature is complete only when its UI action, application logic, persistence (where applicable), error handling and Windows runtime behavior have all been tested.
+
+## Current Windows implementation status
+
+Implemented in the current rebuild branch:
+- WPF dashboard, profile import/export, selected-profile validation, subscription URL import/refresh.
+- DPAPI profile vault and persisted non-secret connection preferences.
+- Xray profile parsing/building for VLESS, VMess, Trojan, Shadowsocks, SOCKS and HTTP.
+- System proxy activation/recovery, caller-owned config preservation and temporary runtime cleanup.
+- Custom DNS resolver override and user-entered domain bypass rules.
+- Experimental Wintun/TUN launch path with generated-config validation; physical Windows route/DNS/shutdown validation remains a release gate.
+
+Still pending for Android feature parity:
+- Subscription quota/expiry metadata and scheduled refresh.
+- Advanced DNS policy: fake DNS, encrypted DNS modes/policy, ad-block lists and sniffing.
+- GeoIP/geosite split-routing, per-app routing, kill switch and block-when-off behavior.
+- Live traffic counters, connection health, server/IP probes, network monitor, speed/stability tests and full debugger tooling.
+- Hysteria2 and IKEv2 runtime adapters where Android supports them; these are not supplied by the current Xray-only runtime.
+- SSH shell, SFTP, backup/restore UI, and Warp/Tor/Windscribe/Aether integrations.
+- Physical Windows testing for TUN, real proxy connectivity, DNS leak behavior, application compatibility and crash recovery.
+
+Do not mark an item complete based only on UI presence or JSON generation. Each feature still requires the delivery-gate verification described above.
