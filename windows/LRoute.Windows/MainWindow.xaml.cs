@@ -100,7 +100,9 @@ public partial class MainWindow : Window
 
         try
         {
-            var content = dialog.FilterIndex == 2 && !string.IsNullOrWhiteSpace(profile.SourceUri)
+            var canExportShareLink = !string.IsNullOrWhiteSpace(profile.SourceUri) &&
+                !profile.SourceUri.StartsWith("json:", StringComparison.OrdinalIgnoreCase);
+            var content = dialog.FilterIndex == 2 && canExportShareLink
                 ? profile.SourceUri
                 : RuntimeProfileBuilder.Build(profile);
             File.WriteAllText(dialog.FileName, content);
