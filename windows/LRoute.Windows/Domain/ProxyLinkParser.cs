@@ -89,7 +89,8 @@ public static class ProxyLinkParser
             Name = Uri.UnescapeDataString(uri.Fragment.TrimStart('#')) is { Length: > 0 } n ? n : $"{uri.Host}:{uri.Port}",
             Protocol = protocol, Server = uri.Host, Port = uri.Port, UserId = id, Password = password,
             Network = q["type"] ?? q["network"] ?? "tcp",
-            Security = NormalizeSecurity(q["security"] ?? (q["sni"] is null ? "none" : "tls")),
+            Security = NormalizeSecurity(q["security"] ??
+                (scheme == "trojan" || q["sni"] is not null ? "tls" : "none")),
             Sni = q["sni"] ?? q["serverName"] ?? "",
             Host = q["host"] ?? q["authority"] ?? "",
             Path = q["path"] ?? "",
@@ -111,7 +112,7 @@ public static class ProxyLinkParser
         string Get(string key, string fallback = "") => root.TryGetProperty(key, out var v) ? v.ToString() : fallback;
         return new ProxyProfile
         {
-            Name = Uri.UnescapeDataString(original.Split('#').LastOrDefault() ?? "") is { Length: > 0 } n ? n : Get("ps", Get("add")),
+            Name = Uri.UnescapeDataString(uri.Fragment.TrimStart('#')) is { Length: > 0 } n ? n : Get("ps", Get("add")),
             Protocol = "vmess", Server = Get("add"), Port = int.TryParse(Get("port"), out var p) ? p : 0,
             UserId = Get("id"), AlterId = int.TryParse(Get("aid", "0"), out var alterId) ? alterId : 0,
             Method = Get("scy", "auto"), Network = Get("net", "tcp"),
