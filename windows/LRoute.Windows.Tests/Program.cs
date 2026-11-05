@@ -22,6 +22,15 @@ var vmessJson = JsonSerializer.Serialize(new
 });
 var vmessLink = "vmess://" + Convert.ToBase64String(Encoding.UTF8.GetBytes(vmessJson));
 
+var subscriptionInfo = SubscriptionFetcher.ParseUserInfoHeader(
+    "upload=1048576; download=2097152; total=10485760; expire=2000000000");
+Assert(subscriptionInfo is not null && subscriptionInfo.UploadBytes == 1048576 &&
+    subscriptionInfo.DownloadBytes == 2097152 && subscriptionInfo.TotalBytes == 10485760 &&
+    subscriptionInfo.ExpiresAt == 2000000000 && subscriptionInfo.UsedBytes == 3145728,
+    "subscription-userinfo header must parse upload, download, total and Unix expiry values.");
+Assert(SubscriptionFetcher.ParseUserInfoHeader("upload=bad; unknown=value") is null,
+    "Malformed subscription-userinfo headers must not create fake zero-valued quota metadata.");
+
 var cases = new[]
 {
     ("vless", "vless://11111111-1111-4111-8111-111111111111@example.com:443?type=tcp&security=tls&sni=example.com#vless-test"),
