@@ -72,6 +72,21 @@ public static class XrayTunConfigBuilder
         if (tunDnsServers.Length == 0)
             tunDnsServers = ["1.1.1.1", "8.8.8.8", "2606:4700:4700::1111", "2001:4860:4860::8888"];
 
+        var sniffingEnabled = root["inbounds"] is JsonArray configuredInbounds &&
+            configuredInbounds.OfType<JsonObject>().Any(item =>
+                !ReferenceEquals(item, tun) &&
+                item["sniffing"] is JsonObject sniff &&
+                sniff["enabled"]?.GetValue<bool>() == true);
+        if (sniffingEnabled || root["fakedns"] is not null)
+        {
+            tun["sniffing"] = new JsonObject
+            {
+                ["enabled"] = true,
+                ["destOverride"] = new JsonArray("http", "tls", "quic", "fakedns"),
+                ["routeOnly"] = false
+            };
+        }
+
         tun["settings"] = new JsonObject
         {
             ["name"] = "lroute0",
