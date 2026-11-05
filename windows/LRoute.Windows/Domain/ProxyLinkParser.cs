@@ -68,6 +68,8 @@ public static class ProxyLinkParser
 
         if (scheme == "vmess") return ParseVmess(uri, value);
         if (scheme == "ss") return ParseShadowsocks(uri, value);
+        if (string.IsNullOrWhiteSpace(uri.Host) || uri.Port is < 1 or > 65535)
+            throw new FormatException("Proxy link must include a valid server and port.");
 
         var user = Uri.UnescapeDataString(uri.UserInfo);
         var id = "";
@@ -110,10 +112,14 @@ public static class ProxyLinkParser
         using var doc = JsonDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(PadBase64(encoded))));
         var root = doc.RootElement;
         string Get(string key, string fallback = "") => root.TryGetProperty(key, out var v) ? v.ToString() : fallback;
+        var server = Get("add");
+        var port = int.TryParse(Get("port"), out var parsedPort) ? parsedPort : 0;
+        if (string.IsNullOrWhiteSpace(server) || port is < 1 or > 65535)
+            throw new FormatException("VMess profile must include a valid server and port.");
         return new ProxyProfile
         {
-            Name = Uri.UnescapeDataString(uri.Fragment.TrimStart('#')) is { Length: > 0 } n ? n : Get("ps", Get("add")),
-            Protocol = "vmess", Server = Get("add"), Port = int.TryParse(Get("port"), out var p) ? p : 0,
+            Name = Uri.UnescapeDataString(uri.Fragment.TrimStart('#')) is { Length: > 0 } n ? n : Get("ps", server),
+            Protocol = "vmess", Server = server, Port = port,
             UserId = Get("id"), AlterId = int.TryParse(Get("aid", "0"), out var alterId) ? alterId : 0,
             Method = Get("scy", "auto"), Network = Get("net", "tcp"),
             Security = NormalizeSecurity(Get("tls", "none")), Sni = Get("sni"), Host = Get("host"), Path = Get("path"),
@@ -139,6 +145,8 @@ public static class ProxyLinkParser
             methodPassword = Encoding.UTF8.GetString(Convert.FromBase64String(PadBase64(methodPassword)));
         var auth = methodPassword.Split(':', 2);
         var endpoint = new Uri("ss://" + Uri.EscapeDataString(auth[0]) + ":" + Uri.EscapeDataString(auth[1]) + "@" + hostPort);
+        if (string.IsNullOrWhiteSpace(endpoint.Host) || endpoint.Port is < 1 or > 65535)
+            throw new FormatException("Shadowsocks link must include a valid server and port.");
         return new ProxyProfile { Name = Uri.UnescapeDataString(uri.Fragment.TrimStart('#')) is { Length: > 0 } n ? n : endpoint.Host,
             Protocol = "shadowsocks", Server = endpoint.Host, Port = endpoint.Port, Method = auth[0], Password = auth[1], SourceUri = original };
     }
