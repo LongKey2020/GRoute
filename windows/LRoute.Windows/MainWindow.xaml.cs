@@ -62,15 +62,21 @@ public partial class MainWindow : Window
             {
                 var source = await File.ReadAllTextAsync(file);
                 var subscriptionUrl = GetSubscriptionUrl(source);
-                source = await FetchSubscriptionIfUrlAsync(source);
+                SubscriptionFetchResult? fetched = null;
+                if (subscriptionUrl is not null)
+                {
+                    fetched = await _subscriptions.FetchAsync(subscriptionUrl);
+                    source = fetched.Content;
+                }
                 var result = ProxyLinkParser.ParseManyDetailed(source);
                 foreach (var profile in result.Profiles)
                 {
-                    _profiles.Add(profile with
+                    var imported = profile with
                     {
                         Name = profile.Name == "New profile" ? Path.GetFileNameWithoutExtension(file) : profile.Name,
                         SubscriptionUrl = subscriptionUrl ?? ""
-                    });
+                    };
+                    _profiles.Add(ApplySubscriptionMetadata(imported, fetched));
                     added++;
                 }
                 importErrors.AddRange(result.Errors.Select(error => $"{Path.GetFileName(file)}: {error}"));
@@ -197,14 +203,20 @@ public partial class MainWindow : Window
             try
             {
                 var subscriptionUrl = GetSubscriptionUrl(input.Text);
-                var source = await FetchSubscriptionIfUrlAsync(input.Text);
+                SubscriptionFetchResult? fetched = null;
+                var source = input.Text;
+                if (subscriptionUrl is not null)
+                {
+                    fetched = await _subscriptions.FetchAsync(subscriptionUrl);
+                    source = fetched.Content;
+                }
                 var result = ProxyLinkParser.ParseManyDetailed(source);
                 if (result.Profiles.Count == 0)
                     throw new FormatException(result.Errors.Count > 0
                         ? string.Join(Environment.NewLine, result.Errors)
                         : "No supported VLESS, VMess, Trojan, Shadowsocks, SOCKS or HTTP profile was found.");
                 foreach (var profile in result.Profiles)
-                    _profiles.Add(profile with { SubscriptionUrl = subscriptionUrl ?? "" });
+                    _profiles.Add(ApplySubscriptionMetadata(profile with { SubscriptionUrl = subscriptionUrl ?? "" }, fetched));
                 Persist(); RefreshUi(); editor.Close();
                 if (result.Errors.Count > 0) ShowImportErrors(result.Errors);
             }
@@ -588,10 +600,18 @@ public partial class MainWindow : Window
             : null;
     }
 
-    private async Task<string> FetchSubscriptionIfUrlAsync(string value)
+    private static ProxyProfile ApplySubscriptionMetadata(ProxyProfile profile, SubscriptionFetchResult? fetched)
     {
-        var url = GetSubscriptionUrl(value);
-        return url is not null ? await _subscriptions.GetContentAsync(url) : value;
+        if (fetched is null) return profile;
+        var info = fetched.UserInfo;
+        return profile with
+        {
+            SubscriptionUploadBytes = info?.UploadBytes ?? 0,
+            SubscriptionDownloadBytes = info?.DownloadBytes ?? 0,
+            SubscriptionTotalBytes = info?.TotalBytes ?? 0,
+            SubscriptionExpiresAt = info?.ExpiresAt ?? 0,
+            SubscriptionLastUpdated = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        };
     }
 
     private void Persist()
