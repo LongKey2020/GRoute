@@ -104,16 +104,13 @@ try
             "Complete imported VLESS JSON must preserve its TLS transport security.");
         var localInbounds = fullRuntime.RootElement.GetProperty("inbounds").EnumerateArray().ToArray();
         Assert(localInbounds.Any(item => item.TryGetProperty("protocol", out var protocol) &&
-            protocol.GetString() == "http" && item.GetProperty("port").GetInt32() == 2081 &&
+            protocol.GetString() == "socks" && item.GetProperty("port").GetInt32() == 10626 &&
             item.GetProperty("listen").GetString() == "127.0.0.1"),
-            "Complete imported Xray JSON must expose the local HTTP proxy listener safely.");
-        Assert(localInbounds.Any(item => item.TryGetProperty("protocol", out var protocol) &&
-            protocol.GetString() == "socks" && item.GetProperty("port").GetInt32() == 2080),
-            "Complete imported Xray JSON must expose the local SOCKS listener.");
+            "Complete imported Xray JSON must expose one local mixed SOCKS/HTTP proxy listener.");
         var runtimeRules = fullRuntime.RootElement.GetProperty("routing").GetProperty("rules").EnumerateArray().ToArray();
         Assert(runtimeRules[0].GetProperty("outboundTag").GetString() == "proxy" &&
-            runtimeRules[0].GetProperty("inboundTag").GetArrayLength() == 2,
-            "Local listeners must route to the selected proxy before the imported global catch-all.");
+            runtimeRules[0].GetProperty("inboundTag").EnumerateArray().Any(x => x.GetString() == "lroute-mixed-in"),
+            "The mixed local listener must route to the selected proxy before the imported global catch-all.");
     }
     const string importedPortConflict = """{"outbounds":[{"tag":"proxy","protocol":"vless","settings":{"vnext":[{"address":"example.com","port":443,"users":[{"id":"11111111-1111-4111-8111-111111111111","encryption":"none"}]}]}}],"inbounds":[{"tag":"dns-in","listen":"127.0.0.1","port":2081,"protocol":"dokodemo-door"}]}""";
     var conflictingProfile = ProxyLinkParser.ParseMany(importedPortConflict).Single();
@@ -193,6 +190,36 @@ try
             Array.FindIndex(rules, rule => rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "proxy"),
             "Direct bypass rules must be evaluated before the proxy catch-all.");
     }
+    var advancedConfig = RuntimeConfigOptions.Apply(
+        RuntimeProfileBuilder.Build(unauthenticatedHttp[0]),
+        "", "", "", fakeDnsEnabled: true, encryptedDnsEnabled: true,
+        iranDirectEnabled: true, sniffingEnabled: true, muxEnabled: true);
+    using (var advanced = JsonDocument.Parse(advancedConfig))
+    {
+        var root = advanced.RootElement;
+        Assert(root.GetProperty("fakedns").GetProperty("ipPool").GetString() == "198.18.0.0/15",
+            "FakeDNS must configure the reserved fake IP pool.");
+        Assert(root.GetProperty("dns").GetProperty("servers")[0].GetString() == "fakedns",
+            "FakeDNS must be the first DNS server.");
+        Assert(root.GetProperty("dns").GetProperty("disableFallback").GetBoolean(),
+            "Encrypted DNS must disable plain DNS fallback.");
+        Assert(root.GetProperty("dns").GetProperty("servers")[1].GetString() == "https+local://1.1.1.1/dns-query",
+            "Encrypted DNS must use a local-mode DoH endpoint.");
+        Assert(root.GetProperty("inbounds")[0].GetProperty("sniffing").GetProperty("enabled").GetBoolean(),
+            "Sniffing must be enabled on local inbounds.");
+        Assert(root.GetProperty("outbounds")[0].GetProperty("mux").GetProperty("enabled").GetBoolean(),
+            "Mux must be enabled on the selected proxy outbound.");
+        var iran = root.GetProperty("routing").GetProperty("rules").EnumerateArray().First();
+        Assert(iran.GetProperty("domain")[0].GetString() == "geosite:ir" &&
+            iran.GetProperty("ip")[0].GetString() == "geoip:ir",
+            "Iran direct split-routing must use the Iran domain and IP geodata.");
+    }
+    var invalidEncryptedDnsRejected = false;
+    try { RuntimeConfigOptions.Apply(RuntimeProfileBuilder.Build(unauthenticatedHttp[0]), "1.1.1.1", "", "", encryptedDnsEnabled: true); }
+    catch (FormatException) { invalidEncryptedDnsRejected = true; }
+    Assert(invalidEncryptedDnsRejected, "Encrypted DNS must reject plain DNS servers.");
+    Console.WriteLine("PASS: advanced FakeDNS, DoH, Iran routing, sniffing and Mux configuration");
+
     var settingsConfigPath = Path.Combine(temp, "dns-split-routing.json");
     await File.WriteAllTextAsync(settingsConfigPath, configuredJson);
     var settingsValidation = new ProcessStartInfo(xray)
