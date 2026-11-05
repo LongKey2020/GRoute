@@ -68,6 +68,7 @@ public sealed class XrayEngine : IDisposable
             throw new FileNotFoundException("Wintun runtime is missing. The Windows Xray package must include wintun.dll.");
 
         string? staleRuntimeConfig;
+        bool staleConfigOwned;
         lock (_sync)
         {
             if (_process is { HasExited: false })
@@ -75,11 +76,12 @@ public sealed class XrayEngine : IDisposable
             _process?.Dispose();
             _process = null;
             staleRuntimeConfig = _runtimeConfigPath;
+            staleConfigOwned = _tunMode;
             _runtimeConfigPath = null;
             _tunMode = false;
             _log.Clear();
         }
-        if (staleRuntimeConfig is not null) TryDeleteRuntimeFiles(staleRuntimeConfig);
+        if (staleConfigOwned && staleRuntimeConfig is not null) TryDeleteRuntimeFiles(staleRuntimeConfig);
 
         var runtimeConfigPath = configPath;
         if (tunMode)
@@ -136,6 +138,7 @@ public sealed class XrayEngine : IDisposable
         process.Exited += (_, _) =>
         {
             string? exitedConfig = null;
+            var exitedConfigOwned = false;
             var wasCurrentProcess = false;
             lock (_sync)
             {
@@ -144,11 +147,12 @@ public sealed class XrayEngine : IDisposable
                     wasCurrentProcess = true;
                     _process = null;
                     exitedConfig = _runtimeConfigPath;
+                    exitedConfigOwned = _tunMode;
                     _runtimeConfigPath = null;
                     _tunMode = false;
                 }
             }
-            if (exitedConfig is not null) TryDeleteRuntimeFiles(exitedConfig);
+            if (exitedConfigOwned && exitedConfig is not null) TryDeleteRuntimeFiles(exitedConfig);
             if (wasCurrentProcess) ProcessExited?.Invoke(this, EventArgs.Empty);
         };
 
@@ -208,7 +212,7 @@ public sealed class XrayEngine : IDisposable
                 catch { /* Preserve the original startup exception; cleanup below remains best-effort. */ }
             }
             process.Dispose();
-            TryDeleteRuntimeFiles(runtimeConfigPath);
+            if (tunMode) TryDeleteRuntimeFiles(runtimeConfigPath);
             throw;
         }
     }
@@ -285,7 +289,7 @@ public sealed class XrayEngine : IDisposable
             }
         }
 
-        if (runtimeConfigPath is not null) TryDeleteRuntimeFiles(runtimeConfigPath);
+        if (tunMode && runtimeConfigPath is not null) TryDeleteRuntimeFiles(runtimeConfigPath);
     }
 
     private static void SendConsoleBreak(int processId)
