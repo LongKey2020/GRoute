@@ -22,6 +22,7 @@ public sealed record ProxyProfile
     public string Fingerprint { get; init; } = "chrome";
     public string Alpn { get; init; } = "";
     public string SourceUri { get; init; } = "";
+    public string SubscriptionUrl { get; init; } = "";
     public string RawJson { get; init; } = "";
     public DateTimeOffset AddedAt { get; init; } = DateTimeOffset.UtcNow;
     public string DisplayEndpoint => !string.IsNullOrWhiteSpace(Server)
