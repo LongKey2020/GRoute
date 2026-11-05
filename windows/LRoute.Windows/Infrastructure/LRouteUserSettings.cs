@@ -19,6 +19,12 @@ public sealed record LRouteUserSettings
     public string Language { get; init; } = "English";
     public bool AutoRefreshSubscriptions { get; init; }
     public int SubscriptionRefreshMinutes { get; init; } = 60;
+    public bool FakeDnsEnabled { get; init; }
+    public bool EncryptedDnsEnabled { get; init; }
+    public bool IranDirectEnabled { get; init; }
+    public bool SniffingEnabled { get; init; }
+    public bool MuxEnabled { get; init; }
+    public int MixedPort { get; init; } = 10626;
     public bool AdBlockEnabled { get; init; }
     public string BlockedDomains { get; init; } = "doubleclick.net, googlesyndication.com, google-analytics.com, adservice.google.com, app-measurement.com, scorecardresearch.com";
 
