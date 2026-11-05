@@ -268,6 +268,50 @@ public partial class MainWindow : Window
         }));
     }
 
+    private async void ValidateSelected_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProfilesList.SelectedItem is not ProxyProfile profile)
+        {
+            MessageBox.Show(this, "Select a profile to validate first.", "LRoute", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        string? sourcePath = null;
+        string? validationPath = null;
+        try
+        {
+            Directory.CreateDirectory(RuntimeDirectory);
+            var config = RuntimeConfigOptions.Apply(
+                RuntimeProfileBuilder.Build(profile), _settings.DnsServers, _settings.BypassDomains);
+            sourcePath = Path.Combine(RuntimeDirectory, $"validate-source-{Guid.NewGuid():N}.json");
+            await File.WriteAllTextAsync(sourcePath, config);
+            validationPath = _settings.UseTunMode
+                ? await XrayTunConfigBuilder.CreateAsync(sourcePath, RuntimeDirectory)
+                : sourcePath;
+
+            await _engine.TestConfigAsync(validationPath);
+            MessageBox.Show(this,
+                "Xray accepted this profile and its current DNS/split-routing settings. No network connection was started.",
+                "Profile validation passed", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Profile validation failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            foreach (var path in new[] { validationPath, sourcePath }.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct())
+            {
+                try
+                {
+                    if (File.Exists(path)) File.Delete(path);
+                    if (File.Exists(path + ".error.log")) File.Delete(path + ".error.log");
+                }
+                catch { /* Best-effort cleanup of temporary validation files only. */ }
+            }
+        }
+    }
+
     private void Remove_Click(object sender, RoutedEventArgs e)
     {
         if (ProfilesList.SelectedItem is not ProxyProfile profile) return;
