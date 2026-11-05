@@ -148,8 +148,7 @@ public static class RuntimeProfileBuilder
     private static string EnsureLocalInbound(JsonArray inbounds, string protocol, int port, string preferredTag)
     {
         if (port is < 1 or > 65535) throw new ArgumentOutOfRangeException(nameof(port));
-        var existing = inbounds.OfType<JsonObject>().FirstOrDefault(item =>
-            item["port"] is JsonValue value && value.TryGetValue<int>(out var currentPort) && currentPort == port);
+        var existing = inbounds.OfType<JsonObject>().FirstOrDefault(item => InboundUsesPort(item, port));
 
         if (existing is not null)
         {
@@ -176,6 +175,26 @@ public static class RuntimeProfileBuilder
             ["settings"] = settings
         });
         return tag;
+    }
+
+    private static bool InboundUsesPort(JsonObject inbound, int targetPort)
+    {
+        if (inbound["port"] is not JsonValue value) return false;
+        if (value.TryGetValue<int>(out var numericPort)) return numericPort == targetPort;
+        if (!value.TryGetValue<string>(out var text) || string.IsNullOrWhiteSpace(text)) return false;
+
+        foreach (var segment in text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var range = segment.Split('-', 2, StringSplitOptions.TrimEntries);
+            if (range.Length == 1 && int.TryParse(range[0], out var single) && single == targetPort)
+                return true;
+            if (range.Length == 2 &&
+                int.TryParse(range[0], out var first) &&
+                int.TryParse(range[1], out var last) &&
+                targetPort >= Math.Min(first, last) && targetPort <= Math.Max(first, last))
+                return true;
+        }
+        return false;
     }
 
     private static string UniqueTag<T>(
