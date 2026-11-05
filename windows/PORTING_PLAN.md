@@ -8,7 +8,7 @@ This branch is a clean Windows rewrite. Do not extend the previous experimental 
 - Visual direction: the approved NetBird-inspired two-panel dashboard, branded with the LRoute bird mark and LRoute wordmark; charcoal/near-black surfaces with orange accent.
 - Keep normal Windows window chrome and system controls (minimize, maximize/restore, close).
 - Port the Android APK's real features and workflows to Windows, not just its labels or visual placeholders.
-- Explicit exclusions: WireGuard (all variants) and QR scanning.
+- Explicit exclusion: QR scanning.
 - No forced update prompt, no splash logo, no third-party product branding.
 
 ## Android source-of-truth inventory
@@ -21,7 +21,7 @@ Use the existing Android implementation under `app/src/main/java/net/gozar/app/`
 - Tunnel lifecycle, auto-select, per-app routing and kill-switch behavior: `GozarVpnService.kt`, `MainActivity.kt`
 - Profile CRUD, import/export, local/subscription profiles and backup/restore: `ConfigStore.kt`, `ConfigFile.kt`, `ConfigShare.kt`
 - Subscription fetch, refresh, quota/expiry metadata: `SubscriptionFetcher.kt`, `Subscriptionrefresher.kt`, `Subscription.kt`
-- Supported proxy transports/protocols must be confirmed from the Android parser/builder and ported without WireGuard branches. Expected Xray-compatible families include VLESS, VMess, Trojan, Shadowsocks, SOCKS/HTTP, Hysteria2 and supported IKEv2 paths where the Android implementation provides them.
+- Supported proxy transports/protocols must be confirmed from the Android parser/builder and ported with the unsupported WireGuard paths removed. Expected Xray-compatible families include VLESS, VMess, Trojan, Shadowsocks, SOCKS/HTTP, Hysteria2 and supported IKEv2 paths where the Android implementation provides them.
 
 ### Network, diagnostics and utilities
 - Config debugger: `Configdebug.kt`
@@ -76,7 +76,7 @@ Still pending for Android feature parity:
 - Scheduled/background subscription refresh (manual refresh now reads and persists quota/expiry metadata from `subscription-userinfo`).
 - Advanced DNS policy: fake DNS, encrypted DNS modes/policy, ad-block lists and sniffing.
 - GeoIP/geosite split-routing, per-app routing, kill switch and block-when-off behavior.
-- Live traffic counters, connection health, server/IP probes, network monitor, speed/stability tests and full debugger tooling.
+- Live traffic counters, connection health, server/IP intelligence probes, network monitor, speed/stability tests and full debugger tooling. A basic server ICMP Ping Check is now available in the Windows header; it is not a tunnel-latency test.
 - Hysteria2 and IKEv2 runtime adapters where Android supports them; these are not supplied by the current Xray-only runtime.
 - SSH shell, SFTP, and Warp/Tor/Windscribe/Aether integrations.
 - Physical Windows testing for TUN, real proxy connectivity, DNS leak behavior, application compatibility and crash recovery.
