@@ -8,7 +8,7 @@ A clean Windows x64 rewrite of LRoute. The Android application remains the featu
 - Self-contained Windows x64 publish with Xray-core 26.10.31 and Wintun runtime packaged.
 - Profile import from VLESS, VMess, Trojan, Shadowsocks, SOCKS and HTTP share links.
 - Import of complete Xray JSON configurations and standalone outbound JSON.
-- Manual profile text import, multi-file import, Xray JSON/share-link export, subscription URL download and refresh (HTTP/HTTPS), and per-line import diagnostics.
+- Manual profile text import, multi-file import, Xray JSON/share-link export, subscription URL download and refresh (HTTP/HTTPS), and per-line import diagnostics. A server Ping Check reports packet loss and min/average/max ICMP latency.
 - DPAPI-protected profile storage under `%LOCALAPPDATA%\LRoute\profiles.dat`, plus encrypted profile backup/restore files that are bound to the current Windows user.
 - Xray configuration validation before engine startup and a non-connecting “Validate selected” profile diagnostic.
 - Windows Internet Settings proxy integration: WinINET-aware apps are directed to the local HTTP proxy; previous manual proxy/PAC settings are backed up with DPAPI and restored on disconnect, app close, or next launch after an unclean exit.
@@ -19,11 +19,11 @@ A clean Windows x64 rewrite of LRoute. The Android application remains the featu
 
 ## Explicit exclusions and limitations
 
-- WireGuard (all variants) and QR scanning are intentionally excluded.
+- QR scanning is not included in this Windows build.
 - Hysteria2, IKEv2 and other protocols requiring a separate runtime are not supported by this Xray-only build.
 - TUN mode is exposed as experimental opt-in only. CI validates generated TUN JSON with Xray, but route installation, DNS behavior, disconnect cleanup and leak protection have not been validated on physical Windows systems. Do not treat it as production-ready.
 - Windows System Proxy applies to WinINET-aware applications. It does not guarantee that WinHTTP services, every game, or applications with their own proxy/network stack will use LRoute.
-- Advanced DNS policies (fake DNS, encrypted DNS policy, ad-block lists), geo-based split routing, kill switch, per-app routing, SSH/SFTP, diagnostics, speed/stability tests, Warp/Tor/Windscribe/Aether integrations and the remaining Android tools are not yet ported. The current DNS setting replaces Xray DNS servers; current split routing supports user-entered domain bypass only.
+- Advanced DNS policies (fake DNS, encrypted DNS policy, ad-block lists), geo-based split routing, kill switch, per-app routing, SSH/SFTP, speed/stability tests, Warp/Tor/Windscribe/Aether integrations and the remaining Android tools are not yet ported. Network Test currently provides ICMP Ping to the selected or active profile server; it does not measure tunneled latency. The current DNS setting replaces Xray DNS servers; current split routing supports user-entered domain bypass only.
 - Advanced Shadowsocks SIP002 plugins and uncommon subscription encodings still need compatibility testing.
 
 ## Build locally
