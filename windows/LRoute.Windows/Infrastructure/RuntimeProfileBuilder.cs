@@ -88,6 +88,8 @@ public static class RuntimeProfileBuilder
             proxy["tag"] = proxyTag;
         }
 
+        if (root["inbounds"] is not null && root["inbounds"] is not JsonArray)
+            throw new InvalidDataException("Imported Xray inbounds must be an array.");
         var inbounds = root["inbounds"] as JsonArray;
         if (inbounds is null)
         {
@@ -98,12 +100,16 @@ public static class RuntimeProfileBuilder
         var socksTag = EnsureLocalInbound(inbounds, "socks", socksPort, "lroute-socks-in");
         var httpTag = EnsureLocalInbound(inbounds, "http", httpPort, "lroute-http-in");
 
+        if (root["routing"] is not null && root["routing"] is not JsonObject)
+            throw new InvalidDataException("Imported Xray routing must be an object.");
         var routing = root["routing"] as JsonObject;
         if (routing is null)
         {
             routing = new JsonObject();
             root["routing"] = routing;
         }
+        if (routing["rules"] is not null && routing["rules"] is not JsonArray)
+            throw new InvalidDataException("Imported Xray routing rules must be an array.");
         var rules = routing["rules"] as JsonArray;
         if (rules is null)
         {
