@@ -121,6 +121,11 @@ try
         "A malformed/unsupported subscription entry must not discard valid entries.");
     Console.WriteLine("PASS: partial subscription import diagnostics");
 
+    var missingEndpointPort = ProxyLinkParser.ParseManyDetailed(
+        "vless://11111111-1111-4111-8111-111111111111@example.com");
+    Assert(missingEndpointPort.Profiles.Count == 0 && missingEndpointPort.Errors.Count == 1,
+        "Share links without a valid endpoint port must be rejected with an import diagnostic.");
+
     var trojanDefaultTls = ProxyLinkParser.ParseMany("trojan://test-password@example.com:443#trojan-default-tls");
     Assert(trojanDefaultTls.Count == 1 && trojanDefaultTls[0].Security == "tls",
         "Trojan links without an explicit security query must default to TLS.");
