@@ -367,6 +367,9 @@ public partial class MainWindow : Window
         string? validationPath = null;
         try
         {
+            if (_settings.UseTunMode && !File.Exists(Path.Combine(AppContext.BaseDirectory, "xray", "wintun.dll")))
+                throw new FileNotFoundException("Wintun runtime is missing. Reinstall the Windows package before testing TUN mode.");
+
             Directory.CreateDirectory(RuntimeDirectory);
             var config = RuntimeConfigOptions.Apply(
                 RuntimeProfileBuilder.Build(profile), _settings.DnsServers, _settings.BypassDomains);
