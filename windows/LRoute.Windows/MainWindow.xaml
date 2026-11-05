@@ -58,7 +58,7 @@
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
    <Grid Margin="2,3,2,20"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <StackPanel><TextBlock x:Name="PageTitle" Text="Overview" FontSize="27" FontWeight="SemiBold"/><TextBlock x:Name="PageSubtitle" Text="Route WinINET-aware apps through your selected Xray profile." Foreground="{StaticResource Muted}" Margin="0,5,0,0"/></StackPanel>
-    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button Content="＋ Import profile" Click="Import_Click" Background="#F28A35" BorderBrush="#F28A35" Foreground="#171717"/><Button Content="Manual config" Margin="8,0,0,0" Click="Manual_Click"/></StackPanel>
+    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button Content="＋ Import profile" Click="Import_Click" Background="#F28A35" BorderBrush="#F28A35" Foreground="#171717"/><Button Content="Export selected" Margin="8,0,0,0" Click="Export_Click"/><Button Content="Manual config" Margin="8,0,0,0" Click="Manual_Click"/></StackPanel>
    </Grid>
    <Grid Grid.Row="1">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
