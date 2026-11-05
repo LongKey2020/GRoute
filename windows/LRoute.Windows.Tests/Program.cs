@@ -169,7 +169,7 @@ try
     var configuredJson = RuntimeConfigOptions.Apply(
         RuntimeProfileBuilder.Build(unauthenticatedHttp[0]),
         "1.1.1.1, https://dns.google/dns-query",
-        "example.com\n*.internal.example");
+        "example.com\n*.internal.example", "doubleclick.net\ngoogle-analytics.com");
     using (var configured = JsonDocument.Parse(configuredJson))
     {
         var dnsServers = configured.RootElement.GetProperty("dns").GetProperty("servers");
@@ -182,6 +182,13 @@ try
         var domains = bypass.GetProperty("domain").EnumerateArray().Select(x => x.GetString()).ToArray();
         Assert(domains.Contains("domain:example.com") && domains.Contains("domain:internal.example"),
             "Domain bypass must normalize wildcard and newline-separated entries.");
+        var blockRule = rules.FirstOrDefault(rule =>
+            rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "block" &&
+            rule.TryGetProperty("domain", out _));
+        Assert(blockRule.ValueKind == JsonValueKind.Object, "Adblock must create a domain rule to the Xray blackhole outbound.");
+        var blocked = blockRule.GetProperty("domain").EnumerateArray().Select(x => x.GetString()).ToArray();
+        Assert(blocked.Contains("domain:doubleclick.net") && blocked.Contains("domain:google-analytics.com"),
+            "Adblock domains must normalize and be routed to blackhole.");
         Assert(Array.FindIndex(rules, rule => rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "direct") <
             Array.FindIndex(rules, rule => rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "proxy"),
             "Direct bypass rules must be evaluated before the proxy catch-all.");
@@ -214,6 +221,10 @@ try
     try { RuntimeConfigOptions.Apply(RuntimeProfileBuilder.Build(unauthenticatedHttp[0]), "", "not a domain"); }
     catch (FormatException) { invalidDomainRejected = true; }
     Assert(invalidDomainRejected, "Invalid split-routing domains must be rejected.");
+    var invalidBlockedDomainRejected = false;
+    try { RuntimeConfigOptions.Apply(RuntimeProfileBuilder.Build(unauthenticatedHttp[0]), "", "", "bad domain"); }
+    catch (FormatException) { invalidBlockedDomainRejected = true; }
+    Assert(invalidBlockedDomainRejected, "Invalid adblock domains must be rejected.");
     const string importedDns = """{"dns":{"servers":["9.9.9.9"]},"outbounds":[{"tag":"proxy","protocol":"freedom"}]}""";
     using (var inheritedDns = JsonDocument.Parse(RuntimeConfigOptions.Apply(importedDns, "", "")))
         Assert(inheritedDns.RootElement.GetProperty("dns").GetProperty("servers")[0].GetString() == "9.9.9.9",
