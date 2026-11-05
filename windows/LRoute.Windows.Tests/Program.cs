@@ -130,8 +130,11 @@ try
     Console.WriteLine("PASS: complete imported Xray JSON gets local proxy listeners and validates");
 
     var mixed = ProxyLinkParser.ParseManyDetailed(cases[0].Item2 + Environment.NewLine + "unsupported://example.com");
-    Assert(mixed.Profiles.Count == 1 && mixed.Errors.Count == 1,
+    Assert(mixed.Profiles.Count == 1 && mixed.Errors.Count == 1 &&
+        mixed.Errors[0].Contains("unsupported", StringComparison.OrdinalIgnoreCase),
         "A malformed/unsupported subscription entry must not discard valid entries.");
+    Assert(mixed.Errors[0].Contains("'unsupported'", StringComparison.Ordinal),
+        "Import diagnostics must identify the unsupported protocol scheme.");
     Console.WriteLine("PASS: partial subscription import diagnostics");
 
     var missingEndpointPort = ProxyLinkParser.ParseManyDetailed(
