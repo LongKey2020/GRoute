@@ -89,6 +89,15 @@ try
         "A malformed/unsupported subscription entry must not discard valid entries.");
     Console.WriteLine("PASS: partial subscription import diagnostics");
 
+    var trojanDefaultTls = ProxyLinkParser.ParseMany("trojan://test-password@example.com:443#trojan-default-tls");
+    Assert(trojanDefaultTls.Count == 1 && trojanDefaultTls[0].Security == "tls",
+        "Trojan links without an explicit security query must default to TLS.");
+    var vmessWithoutFragment = "vmess://" + Convert.ToBase64String(Encoding.UTF8.GetBytes(vmessJson));
+    var vmessDefaultName = ProxyLinkParser.ParseMany(vmessWithoutFragment);
+    Assert(vmessDefaultName.Count == 1 && vmessDefaultName[0].Name == "vmess-test",
+        "VMess without a URI fragment must use the JSON ps name, not the entire URI.");
+    Console.WriteLine("PASS: Trojan default TLS and VMess fallback profile name");
+
     var unauthenticatedHttp = ProxyLinkParser.ParseMany("http://example.com:8080");
     Assert(unauthenticatedHttp.Count == 1, "Unauthenticated HTTP proxy should parse.");
     var httpConfig = JsonDocument.Parse(RuntimeProfileBuilder.Build(unauthenticatedHttp[0]));
