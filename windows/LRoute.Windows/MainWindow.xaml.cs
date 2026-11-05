@@ -788,6 +788,14 @@ public partial class MainWindow : Window
         var themeRow = new DockPanel(); themeRow.Children.Add(Label("Theme")); var theme = new ComboBox { Width=150, SelectedIndex=0, ItemsSource=new[]{"Dark"} }; DockPanel.SetDock(theme,Dock.Right); themeRow.Children.Add(theme); prefBody.Children.Add(themeRow);
         var languageRow = new DockPanel(); languageRow.Children.Add(Label("Language")); var language = new ComboBox { Width=150, SelectedIndex=0, ItemsSource=new[]{"English"} }; DockPanel.SetDock(language,Dock.Right); languageRow.Children.Add(language); prefBody.Children.Add(languageRow);
         prefBody.Children.Add(new TextBlock { Text = "Dark theme and English UI are currently available. Additional themes and translations are not enabled yet.", Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,4,0,8) });
+        var autoRefresh = new CheckBox { Content = "Automatically refresh subscriptions while disconnected", IsChecked = _settings.AutoRefreshSubscriptions, Foreground = Brushes.White, Margin = new Thickness(0,8,0,6) };
+        prefBody.Children.Add(autoRefresh);
+        var intervalRow = new DockPanel();
+        intervalRow.Children.Add(Label("Refresh interval"));
+        var interval = new ComboBox { Width=150, ItemsSource=new[] { 15, 30, 60, 180, 360, 720, 1440 }, SelectedItem=_settings.SubscriptionRefreshMinutes, HorizontalAlignment=HorizontalAlignment.Right };
+        interval.DisplayMemberPath = null;
+        intervalRow.Children.Add(interval); prefBody.Children.Add(intervalRow);
+        prefBody.Children.Add(new TextBlock { Text = "Auto-refresh is paused while a VPN session is active. Failed subscriptions are retried at the next interval.", Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,4,0,8) });
         prefBody.Children.Add(Action("Refresh selected subscription now", (_,_) => RefreshSubscription_Click(this,new RoutedEventArgs())));
 
         // ABOUT
@@ -807,10 +815,10 @@ public partial class MainWindow : Window
         {
             try
             {
-                var next = _settings with { UseTunMode=tun.IsChecked==true, DnsServers=dns.Text.Trim(), BypassDomains=bypass.Text.Trim(), AdBlockEnabled=adblock.IsChecked==true, BlockedDomains=blockedDomains.Text.Trim(), Theme="Dark", Language="English" };
+                var next = _settings with { UseTunMode=tun.IsChecked==true, DnsServers=dns.Text.Trim(), BypassDomains=bypass.Text.Trim(), AdBlockEnabled=adblock.IsChecked==true, BlockedDomains=blockedDomains.Text.Trim(), AutoRefreshSubscriptions=autoRefresh.IsChecked==true, SubscriptionRefreshMinutes=interval.SelectedItem is int minutes ? minutes : 60, Theme="Dark", Language="English" };
                 const string validationConfig = """{"outbounds":[{"tag":"proxy","protocol":"freedom"},{"tag":"direct","protocol":"freedom"}],"routing":{"rules":[{"type":"field","outboundTag":"proxy"}]}}""";
                 RuntimeConfigOptions.Apply(validationConfig,next.DnsServers,next.BypassDomains,next.AdBlockEnabled ? next.BlockedDomains : "");
-                next.Save(); _settings=next;
+                next.Save(); _settings=next; ConfigureSubscriptionRefreshTimer();
                 MessageBox.Show(dialog,"Connection settings saved. Reconnect for changes to affect the running tunnel.","Settings saved",MessageBoxButton.OK,MessageBoxImage.Information);
             }
             catch(Exception ex){MessageBox.Show(dialog,ex.Message,"Invalid settings",MessageBoxButton.OK,MessageBoxImage.Warning);}
