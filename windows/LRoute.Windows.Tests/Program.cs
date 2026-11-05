@@ -93,11 +93,15 @@ try
         "Standalone Xray outbound should be wrapped as a complete config.");
     Console.WriteLine("PASS: standalone Xray outbound wrapping");
 
-    const string fullXrayJson = """{"outbounds":[{"tag":"proxy","protocol":"vless","settings":{"vnext":[{"address":"example.com","port":443,"users":[{"id":"11111111-1111-4111-8111-111111111111","encryption":"none"}]}]}},{"tag":"direct","protocol":"freedom"}],"routing":{"rules":[{"type":"field","outboundTag":"direct"}]}}""";
+    // A public VLESS server must specify TLS or another supported transport security mode.
+    const string fullXrayJson = """{"outbounds":[{"tag":"proxy","protocol":"vless","settings":{"vnext":[{"address":"example.com","port":443,"users":[{"id":"11111111-1111-4111-8111-111111111111","encryption":"none"}]}]},"streamSettings":{"network":"tcp","security":"tls","tlsSettings":{"serverName":"example.com"}}},{"tag":"direct","protocol":"freedom"}],"routing":{"rules":[{"type":"field","outboundTag":"direct"}]}}""";
     var fullJsonProfile = ProxyLinkParser.ParseMany(fullXrayJson).Single();
     var fullJsonRuntime = RuntimeProfileBuilder.Build(fullJsonProfile);
     using (var fullRuntime = JsonDocument.Parse(fullJsonRuntime))
     {
+        Assert(fullRuntime.RootElement.GetProperty("outbounds")[0].GetProperty("streamSettings")
+            .GetProperty("security").GetString() == "tls",
+            "Complete imported VLESS JSON must preserve its TLS transport security.");
         var localInbounds = fullRuntime.RootElement.GetProperty("inbounds").EnumerateArray().ToArray();
         Assert(localInbounds.Any(item => item.TryGetProperty("protocol", out var protocol) &&
             protocol.GetString() == "http" && item.GetProperty("port").GetInt32() == 2081 &&
