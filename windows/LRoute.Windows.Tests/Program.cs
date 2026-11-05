@@ -106,6 +106,36 @@ try
         "Unauthenticated HTTP proxy must not emit an empty users array.");
     Console.WriteLine("PASS: unauthenticated HTTP proxy config");
 
+    var configuredJson = RuntimeConfigOptions.Apply(
+        RuntimeProfileBuilder.Build(unauthenticatedHttp[0]),
+        "1.1.1.1, https://dns.google/dns-query",
+        "example.com\n*.internal.example");
+    using (var configured = JsonDocument.Parse(configuredJson))
+    {
+        var dnsServers = configured.RootElement.GetProperty("dns").GetProperty("servers");
+        Assert(dnsServers.GetArrayLength() == 2, "DNS preferences must be applied to the Xray document.");
+        var rules = configured.RootElement.GetProperty("routing").GetProperty("rules");
+        var bypass = rules.FirstOrDefault(rule =>
+            rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "direct" &&
+            rule.TryGetProperty("domain", out _));
+        Assert(bypass.ValueKind == JsonValueKind.Object, "Domain bypass rule must route to direct.");
+        var domains = bypass.GetProperty("domain").EnumerateArray().Select(x => x.GetString()).ToArray();
+        Assert(domains.Contains("domain:example.com") && domains.Contains("domain:internal.example"),
+            "Domain bypass must normalize wildcard and newline-separated entries.");
+        Assert(Array.FindIndex(rules.ToArray(), rule => rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "direct") <
+            Array.FindIndex(rules.ToArray(), rule => rule.TryGetProperty("outboundTag", out var tag) && tag.GetString() == "proxy"),
+            "Direct bypass rules must be evaluated before the proxy catch-all.");
+    }
+    var invalidDnsRejected = false;
+    try { RuntimeConfigOptions.Apply(RuntimeProfileBuilder.Build(unauthenticatedHttp[0]), "http://dns.example/query", ""); }
+    catch (FormatException) { invalidDnsRejected = true; }
+    Assert(invalidDnsRejected, "Non-HTTPS DNS URLs must be rejected.");
+    var invalidDomainRejected = false;
+    try { RuntimeConfigOptions.Apply(RuntimeProfileBuilder.Build(unauthenticatedHttp[0]), "", "not a domain"); }
+    catch (FormatException) { invalidDomainRejected = true; }
+    Assert(invalidDomainRejected, "Invalid split-routing domains must be rejected.");
+    Console.WriteLine("PASS: DNS override, split-domain routing and invalid settings validation");
+
     // TUN generation must write a private runtime copy and preserve the imported source.
     var tunSourcePath = Path.Combine(temp, "caller-owned-tun-source.json");
     var tunSourceContents = RuntimeProfileBuilder.Build(unauthenticatedHttp[0]);
