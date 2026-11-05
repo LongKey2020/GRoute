@@ -347,11 +347,10 @@ try
     }
 
     // Exercise the real Xray process lifecycle on Windows, not only JSON validation.
-    var lifecycleSocksPort = Random.Shared.Next(30000, 45000);
-    var lifecycleHttpPort = lifecycleSocksPort == 44999 ? 30001 : lifecycleSocksPort + 1;
+    var lifecycleMixedPort = Random.Shared.Next(30000, 45000);
     var lifecycleConfigPath = Path.Combine(temp, "lifecycle.json");
     await File.WriteAllTextAsync(lifecycleConfigPath,
-        RuntimeProfileBuilder.Build(unauthenticatedHttp[0], lifecycleSocksPort, lifecycleHttpPort));
+        RuntimeProfileBuilder.Build(unauthenticatedHttp[0], lifecycleMixedPort));
     using (var engine = new LRoute.Windows.XrayEngine(xray))
     {
         var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
