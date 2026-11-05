@@ -31,9 +31,9 @@ public sealed class SystemProxyManager
     public bool IsActive => File.Exists(BackupPath);
 
     /// <summary>Restore a previous session's settings before the new UI starts.</summary>
-    public void RecoverPreviousSession()
+    public IReadOnlyList<string> RecoverPreviousSession()
     {
-        if (File.Exists(BackupPath)) Restore();
+        return File.Exists(BackupPath) ? Restore() : [];
     }
 
     public void Activate(int httpPort = 2081)
