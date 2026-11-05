@@ -697,6 +697,7 @@ public partial class MainWindow : Window
         var toolsBody = (StackPanel)tools.Child;
         var hostRow = new DockPanel();
         var hostInput = Field("example.com");
+        var toolsResult = new TextBlock { Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,8,0,0) };
         var hostButton = Action("Check host", async (_, _) =>
         {
             var host = hostInput.Text.Trim();
@@ -714,7 +715,6 @@ public partial class MainWindow : Window
         });
         DockPanel.SetDock(hostButton, Dock.Right); hostRow.Children.Add(hostButton); hostRow.Children.Add(hostInput);
         toolsBody.Children.Add(Label("Check host (DNS + TCP/443)")); toolsBody.Children.Add(hostRow);
-        var toolsResult = new TextBlock { Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,8,0,0) };
         toolsBody.Children.Add(toolsResult);
         var toolButtons = new WrapPanel();
         toolButtons.Children.Add(Action("Connection quality test", (_,_) => NetworkTest_Click(this, new RoutedEventArgs())));
