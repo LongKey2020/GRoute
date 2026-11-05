@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Data;
 using System.IO;
 using System.Net.NetworkInformation;
 using System.Windows;
@@ -13,6 +14,8 @@ public partial class MainWindow : Window
 {
     private readonly ProfileStore _store = new();
     private readonly ObservableCollection<ProxyProfile> _profiles = [];
+    private ICollectionView? _profilesView;
+    private bool _sortAscending = true;
     private readonly XrayEngine _engine = new();
     private readonly SystemProxyManager _systemProxy = new();
     private readonly SubscriptionFetcher _subscriptions = new();
@@ -35,7 +38,10 @@ public partial class MainWindow : Window
                 $"LRoute could not restore the previous Windows proxy settings. Check Windows Settings > Network & Internet > Proxy before connecting again.\\n\\n{ex.Message}",
                 "Proxy recovery required", MessageBoxButton.OK, MessageBoxImage.Error);
         }
-        ProfilesList.ItemsSource = _profiles;
+        _profilesView = CollectionViewSource.GetDefaultView(_profiles);
+        _profilesView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ProxyProfile.GroupName)));
+        _profilesView.Filter = item => item is ProxyProfile p && (string.IsNullOrWhiteSpace(SearchBox.Text) || (p.Name + " " + p.Server + " " + p.Port + " " + p.Protocol).Contains(SearchBox.Text, StringComparison.OrdinalIgnoreCase));
+        ProfilesList.ItemsSource = _profilesView;
         try
         {
             foreach (var profile in _store.Load()) _profiles.Add(profile);
@@ -433,6 +439,90 @@ public partial class MainWindow : Window
     }
 
     private void ProfilesList_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshUi();
+    private void Search_Click(object sender, RoutedEventArgs e)
+    {
+        SearchBox.Visibility = SearchBox.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        if (SearchBox.Visibility == Visibility.Collapsed) SearchBox.Clear(); else SearchBox.Focus();
+    }
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => _profilesView?.Refresh();
+    private void Sort_Click(object sender, RoutedEventArgs e)
+    {
+        _sortAscending = !_sortAscending;
+        var items = (_sortAscending ? _profiles.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase) : _profiles.OrderByDescending(p => p.Name, StringComparer.OrdinalIgnoreCase)).ToArray();
+        _profiles.Clear(); foreach (var item in items) _profiles.Add(item);
+        _profilesView?.Refresh();
+    }
+    private async void TestAll_Click(object sender, RoutedEventArgs e)
+    {
+        var button = (Button)sender; button.IsEnabled = false; button.Content = "Testing...";
+        try
+        {
+            using var ping = new Ping(); var good = 0; var bad = 0; var samples = new List<(string Name,long Ms)>();
+            foreach (var profile in _profiles.ToArray())
+            {
+                var host = GetProbeHost(profile); if (string.IsNullOrWhiteSpace(host)) { bad++; continue; }
+                try { var reply = await ping.SendPingAsync(host, 1200); if (reply.Status == IPStatus.Success) { good++; samples.Add((profile.Name,reply.RoundtripTime)); } else bad++; }
+                catch { bad++; }
+            }
+            var fastest = samples.OrderBy(s => s.Ms).Take(15).Select(s => s.Name + ": " + s.Ms + " ms");
+            MessageBox.Show(this,"Tested: " + (good+bad) + "\nReachable: " + good + "\nUnreachable/blocked: " + bad + "\n\nFastest:\n" + string.Join(Environment.NewLine,fastest) + "\n\nICMP may be blocked. This does not measure VPN tunnel latency.","Test all servers",MessageBoxButton.OK,MessageBoxImage.Information);
+        }
+        finally { button.Content = "▥   Test all"; button.IsEnabled = true; }
+    }
+    private void ProfileActions_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not ProxyProfile profile) return;
+        var menu = new ContextMenu();
+        void Add(string name, Action action) { var item = new MenuItem { Header=name }; item.Click += (_,_)=>action(); menu.Items.Add(item); }
+        Add("Select / Connect",()=>{ ProfilesList.SelectedItem=profile; if(!_engine.IsRunning) Connect_Click(this,new RoutedEventArgs()); });
+        Add("Ping server",()=>_ = PingProfileAsync(profile));
+        Add("Edit profile",()=>EditProfile(profile));
+        Add("Copy share link",()=>CopyProfile(profile));
+        Add("Export profile",()=>{ProfilesList.SelectedItem=profile;Export_Click(this,new RoutedEventArgs());});
+        Add("Remove profile",()=>{ProfilesList.SelectedItem=profile;Remove_Click(this,new RoutedEventArgs());});
+        button.ContextMenu=menu; menu.PlacementTarget=button; menu.IsOpen=true;
+    }
+    private async Task PingProfileAsync(ProxyProfile profile)
+    {
+        var host=GetProbeHost(profile);
+        if(string.IsNullOrWhiteSpace(host)){MessageBox.Show(this,"No server address is available for this profile.","Ping check",MessageBoxButton.OK,MessageBoxImage.Warning);return;}
+        try { using var ping=new Ping(); var reply=await ping.SendPingAsync(host,2000); MessageBox.Show(this,reply.Status==IPStatus.Success?host + "\nReachable • " + reply.RoundtripTime + " ms":host + "\n" + reply.Status + "\nICMP may be blocked.","Ping check",MessageBoxButton.OK,reply.Status==IPStatus.Success?MessageBoxImage.Information:MessageBoxImage.Warning); }
+        catch(Exception ex){MessageBox.Show(this,ex.Message,"Ping check failed",MessageBoxButton.OK,MessageBoxImage.Warning);}
+    }
+    private void CopyProfile(ProxyProfile profile)
+    {
+        var value=!string.IsNullOrWhiteSpace(profile.SourceUri)&&!profile.SourceUri.StartsWith("json:",StringComparison.OrdinalIgnoreCase)?profile.SourceUri:RuntimeProfileBuilder.Build(profile);
+        Clipboard.SetText(value); MessageBox.Show(this,"Profile link/config copied. It contains connection credentials; keep it private.","Share server",MessageBoxButton.OK,MessageBoxImage.Information);
+    }
+    private void EditProfile(ProxyProfile profile)
+    {
+        if(!string.IsNullOrWhiteSpace(profile.SubscriptionUrl))
+        {
+            var url=Microsoft.VisualBasic.Interaction.InputBox("Edit subscription URL:","Edit subscription",profile.SubscriptionUrl);
+            if(string.IsNullOrWhiteSpace(url)||url==profile.SubscriptionUrl)return;
+            if(!Uri.TryCreate(url,UriKind.Absolute,out var uri)||uri.Scheme is not ("http" or "https")){MessageBox.Show(this,"Enter a valid HTTP/HTTPS URL.");return;}
+            foreach(var old in _profiles.Where(p=>p.SubscriptionUrl==profile.SubscriptionUrl).ToArray()){var i=_profiles.IndexOf(old);_profiles[i]=old with{SubscriptionUrl=url};}
+            Persist();_profilesView?.Refresh();return;
+        }
+        var source=profile.SourceUri.StartsWith("json:",StringComparison.OrdinalIgnoreCase)?profile.RawJson:profile.SourceUri;
+        var editor=new Window{Title="Edit server profile",Owner=this,Width=680,Height=460,MinWidth=520,MinHeight=360,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=new SolidColorBrush(Color.FromRgb(25,27,31)),Foreground=Brushes.White};
+        var panel=new DockPanel{Margin=new Thickness(16)};var save=new Button{Content="SAVE CHANGES",Height=42,Margin=new Thickness(0,12,0,0),Background=new SolidColorBrush(Color.FromRgb(242,138,53)),Foreground=Brushes.Black};DockPanel.SetDock(save,Dock.Bottom);
+        var input=new TextBox{Text=source,AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Background=new SolidColorBrush(Color.FromRgb(16,17,19)),Foreground=Brushes.White,CaretBrush=Brushes.White,Padding=new Thickness(12),FontFamily=new FontFamily("Consolas"),FontSize=13};
+        panel.Children.Add(save);panel.Children.Add(input);editor.Content=panel;
+        save.Click+=(_,_)=>{try{var parsed=ProxyLinkParser.ParseManyDetailed(input.Text);if(parsed.Profiles.Count!=1)throw new FormatException("Enter exactly one supported profile or Xray JSON config.");var replacement=parsed.Profiles[0] with{Id=profile.Id,SubscriptionUrl=profile.SubscriptionUrl,AddedAt=profile.AddedAt};var i=_profiles.IndexOf(profile);if(i>=0)_profiles[i]=replacement;Persist();_profilesView?.Refresh();editor.Close();}catch(Exception ex){MessageBox.Show(editor,ex.Message,"Invalid profile",MessageBoxButton.OK,MessageBoxImage.Warning);}};
+        editor.ShowDialog();
+    }
+    private void GroupActions_Click(object sender, RoutedEventArgs e)
+    {
+        if(sender is not Button button||button.Tag is not string groupName)return;
+        var members=_profiles.Where(p=>p.GroupName==groupName).ToArray();if(members.Length==0)return;
+        var menu=new ContextMenu();var share=new MenuItem{Header="Copy subscription URL",IsEnabled=!string.IsNullOrWhiteSpace(members[0].SubscriptionUrl)};share.Click+=(_,_)=>Clipboard.SetText(members[0].SubscriptionUrl);menu.Items.Add(share);
+        var test=new MenuItem{Header="Test all servers in group"};test.Click+=async(_,_)=>{var ok=0;using var ping=new Ping();foreach(var p in members){var h=GetProbeHost(p);if(string.IsNullOrWhiteSpace(h))continue;try{if((await ping.SendPingAsync(h,1200)).Status==IPStatus.Success)ok++;}catch{}}MessageBox.Show(this,"Reachable: "+ok+" / "+members.Length+"\nICMP does not measure VPN tunnel latency.","Group test");};menu.Items.Add(test);
+        var refresh=new MenuItem{Header="Refresh subscription",IsEnabled=!string.IsNullOrWhiteSpace(members[0].SubscriptionUrl)};refresh.Click+=(_,_)=>{ProfilesList.SelectedItem=members[0];RefreshSubscription_Click(this,new RoutedEventArgs());};menu.Items.Add(refresh);
+        var remove=new MenuItem{Header="Remove group"};remove.Click+=(_,_)=>{if(MessageBox.Show(this,"Remove all "+members.Length+" servers in '"+groupName+"'?","Remove group",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;if(members.Any(p=>_active?.Id==p.Id)){MessageBox.Show(this,"Disconnect before removing the active profile.");return;}foreach(var p in members)_profiles.Remove(p);Persist();_profilesView?.Refresh();RefreshUi();};menu.Items.Add(remove);
+        button.ContextMenu=menu;menu.PlacementTarget=button;menu.IsOpen=true;
+    }
+
     private void Overview_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Overview"; PageSubtitle.Text = "Route WinINET-aware apps through your selected Xray profile."; }
     private void Profiles_Click(object sender, RoutedEventArgs e) { PageTitle.Text = "Profiles"; PageSubtitle.Text = "Import and manage Xray-compatible profiles."; }
     private void Settings_Click(object sender, RoutedEventArgs e)
