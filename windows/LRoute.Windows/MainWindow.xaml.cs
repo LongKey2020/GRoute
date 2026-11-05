@@ -284,14 +284,16 @@ public partial class MainWindow : Window
         {
             Directory.CreateDirectory(RuntimeDirectory);
             var config = RuntimeConfigOptions.Apply(
-                RuntimeProfileBuilder.Build(profile), _settings.DnsServers, _settings.BypassDomains, _settings.AdBlockEnabled ? _settings.BlockedDomains : "");
+                RuntimeProfileBuilder.Build(profile, _settings.MixedPort), _settings.DnsServers, _settings.BypassDomains,
+                _settings.AdBlockEnabled ? _settings.BlockedDomains : "", _settings.FakeDnsEnabled, _settings.EncryptedDnsEnabled,
+                _settings.IranDirectEnabled, _settings.SniffingEnabled, _settings.MuxEnabled);
             var path = Path.Combine(RuntimeDirectory, $"profile-{profile.Id}.json");
             await File.WriteAllTextAsync(path, config);
             _activeRuntimeConfigPath = path;
             await _engine.ConnectAsync(path, _settings.UseTunMode);
             if (!_settings.UseTunMode)
             {
-                try { _systemProxy.Activate(); }
+                try { _systemProxy.Activate(_settings.MixedPort); }
                 catch
                 {
                     await _engine.DisconnectAsync();
@@ -430,7 +432,9 @@ public partial class MainWindow : Window
 
             Directory.CreateDirectory(RuntimeDirectory);
             var config = RuntimeConfigOptions.Apply(
-                RuntimeProfileBuilder.Build(profile), _settings.DnsServers, _settings.BypassDomains, _settings.AdBlockEnabled ? _settings.BlockedDomains : "");
+                RuntimeProfileBuilder.Build(profile, _settings.MixedPort), _settings.DnsServers, _settings.BypassDomains,
+                _settings.AdBlockEnabled ? _settings.BlockedDomains : "", _settings.FakeDnsEnabled, _settings.EncryptedDnsEnabled,
+                _settings.IranDirectEnabled, _settings.SniffingEnabled, _settings.MuxEnabled);
             sourcePath = Path.Combine(RuntimeDirectory, $"validate-source-{Guid.NewGuid():N}.json");
             await File.WriteAllTextAsync(sourcePath, config);
             validationPath = _settings.UseTunMode
@@ -770,9 +774,30 @@ public partial class MainWindow : Window
         var tun = new CheckBox { Content = "Experimental full-device TUN mode (administrator approval)", IsChecked = _settings.UseTunMode, Foreground = Brushes.White, Margin = new Thickness(0,4,0,8) };
         connectionBody.Children.Add(tun);
         connectionBody.Children.Add(new TextBlock { Text = "TUN mode requires physical route, DNS and disconnect testing. System proxy mode only affects WinINET-aware applications.", Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,10) });
-        var kill = new CheckBox { Content = "Kill switch — not available in this build", IsEnabled = false, Foreground = muted, Margin = new Thickness(0,4,0,4) };
+        var fakeDns = new CheckBox { Content = "Fake DNS", IsChecked = _settings.FakeDnsEnabled, Foreground = Brushes.White, Margin = new Thickness(0,8,0,2) };
+        connectionBody.Children.Add(fakeDns);
+        connectionBody.Children.Add(new TextBlock { Text = "Fake IP DNS for TUN mode. Requires TUN and sniffing; can leave fake entries in the Windows DNS cache after disconnect.", Foreground = muted, TextWrapping = TextWrapping.Wrap });
+        var encryptedDns = new CheckBox { Content = "Encrypted DNS (DoH)", IsChecked = _settings.EncryptedDnsEnabled, Foreground = Brushes.White, Margin = new Thickness(0,10,0,2) };
+        connectionBody.Children.Add(encryptedDns);
+        connectionBody.Children.Add(new TextBlock { Text = "Uses HTTPS DNS resolvers only. When enabled, plain DNS fallback is disabled.", Foreground = muted, TextWrapping = TextWrapping.Wrap });
+        var iranDirect = new CheckBox { Content = "Split routing (Iran direct)", IsChecked = _settings.IranDirectEnabled, Foreground = Brushes.White, Margin = new Thickness(0,10,0,2) };
+        connectionBody.Children.Add(iranDirect);
+        connectionBody.Children.Add(new TextBlock { Text = "Routes geosite:ir and geoip:ir directly. Requires the Xray geodata files bundled with the app.", Foreground = muted, TextWrapping = TextWrapping.Wrap });
+        var fragment = new CheckBox { Content = "Fragment (anti-DPI) — not supported for proxy handshake by this Xray runtime", IsEnabled = false, Foreground = muted, Margin = new Thickness(0,10,0,2) };
+        connectionBody.Children.Add(fragment);
+        var sniffing = new CheckBox { Content = "Turn on Sniffing", IsChecked = _settings.SniffingEnabled, Foreground = Brushes.White, Margin = new Thickness(0,10,0,2) };
+        connectionBody.Children.Add(sniffing);
+        connectionBody.Children.Add(new TextBlock { Text = "Detects HTTP, TLS, QUIC and FakeDNS destination domains for routing.", Foreground = muted, TextWrapping = TextWrapping.Wrap });
+        var mux = new CheckBox { Content = "Mux (multiplexing)", IsChecked = _settings.MuxEnabled, Foreground = Brushes.White, Margin = new Thickness(0,10,0,2) };
+        connectionBody.Children.Add(mux);
+        connectionBody.Children.Add(new TextBlock { Text = "Shares TCP connections (concurrency 8). May reduce speed or conflict with Reality/Vision; leave off if unstable.", Foreground = muted, TextWrapping = TextWrapping.Wrap });
+        var kill = new CheckBox { Content = "Kill switch — Windows Firewall/WFP enforcement pending", IsEnabled = false, Foreground = muted, Margin = new Thickness(0,10,0,2) };
+        connectionBody.Children.Add(kill);
         var perApp = new CheckBox { Content = "Per-app proxy — not available in this build", IsEnabled = false, Foreground = muted, Margin = new Thickness(0,4,0,10) };
-        connectionBody.Children.Add(kill); connectionBody.Children.Add(perApp);
+        connectionBody.Children.Add(perApp);
+        connectionBody.Children.Add(Label("Mixed port (local SOCKS + HTTP proxy)"));
+        var mixedPort = Field(_settings.MixedPort.ToString()); mixedPort.Width = 120; mixedPort.HorizontalAlignment = HorizontalAlignment.Right;
+        connectionBody.Children.Add(mixedPort);
         var adblock = new CheckBox { Content = "Enable domain ad / tracker blocking", IsChecked = _settings.AdBlockEnabled, Foreground = Brushes.White, Margin = new Thickness(0,8,0,8) };
         connectionBody.Children.Add(adblock);
         connectionBody.Children.Add(Label("Blocked domains (one per line; Xray blackhole outbound)"));
@@ -815,9 +840,12 @@ public partial class MainWindow : Window
         {
             try
             {
-                var next = _settings with { UseTunMode=tun.IsChecked==true, DnsServers=dns.Text.Trim(), BypassDomains=bypass.Text.Trim(), AdBlockEnabled=adblock.IsChecked==true, BlockedDomains=blockedDomains.Text.Trim(), AutoRefreshSubscriptions=autoRefresh.IsChecked==true, SubscriptionRefreshMinutes=interval.SelectedItem is int minutes ? minutes : 60, Theme="Dark", Language="English" };
+                if (!int.TryParse(mixedPort.Text.Trim(), out var mixedPortValue) || mixedPortValue is < 1024 or > 65535) throw new FormatException("Mixed port must be a number between 1024 and 65535.");
+                if (fakeDns.IsChecked == true && tun.IsChecked != true) throw new InvalidOperationException("Fake DNS currently requires TUN mode. Enable TUN before enabling Fake DNS.");
+                var next = _settings with { UseTunMode=tun.IsChecked==true, DnsServers=dns.Text.Trim(), BypassDomains=bypass.Text.Trim(), AdBlockEnabled=adblock.IsChecked==true, BlockedDomains=blockedDomains.Text.Trim(), FakeDnsEnabled=fakeDns.IsChecked==true, EncryptedDnsEnabled=encryptedDns.IsChecked==true, IranDirectEnabled=iranDirect.IsChecked==true, SniffingEnabled=sniffing.IsChecked==true, MuxEnabled=mux.IsChecked==true, MixedPort=mixedPortValue, AutoRefreshSubscriptions=autoRefresh.IsChecked==true, SubscriptionRefreshMinutes=interval.SelectedItem is int minutes ? minutes : 60, Theme="Dark", Language="English" };
                 const string validationConfig = """{"outbounds":[{"tag":"proxy","protocol":"freedom"},{"tag":"direct","protocol":"freedom"}],"routing":{"rules":[{"type":"field","outboundTag":"proxy"}]}}""";
-                RuntimeConfigOptions.Apply(validationConfig,next.DnsServers,next.BypassDomains,next.AdBlockEnabled ? next.BlockedDomains : "");
+                RuntimeConfigOptions.Apply(RuntimeProfileBuilder.Build(ProxyLinkParser.ParseMany("socks://127.0.0.1:1080").Single(), next.MixedPort), next.DnsServers,next.BypassDomains,
+                    next.AdBlockEnabled ? next.BlockedDomains : "", next.FakeDnsEnabled,next.EncryptedDnsEnabled,next.IranDirectEnabled,next.SniffingEnabled,next.MuxEnabled);
                 next.Save(); _settings=next; ConfigureSubscriptionRefreshTimer();
                 MessageBox.Show(dialog,"Connection settings saved. Reconnect for changes to affect the running tunnel.","Settings saved",MessageBoxButton.OK,MessageBoxImage.Information);
             }
