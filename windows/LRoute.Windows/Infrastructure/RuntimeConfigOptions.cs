@@ -79,6 +79,44 @@ public static class RuntimeConfigOptions
             fakeDnsConfig["servers"] = servers;
             if (!servers.Any(item => string.Equals(item?.GetValue<string>(), "fakedns", StringComparison.OrdinalIgnoreCase)))
                 servers.Insert(0, JsonValue.Create("fakedns"));
+
+            if (root["outbounds"] is not JsonArray fakeOutbounds)
+                throw new InvalidDataException("Xray configuration has no outbounds array for FakeDNS.");
+            var dnsTag = fakeOutbounds.OfType<JsonObject>().FirstOrDefault(item =>
+                string.Equals(item["protocol"]?.GetValue<string>(), "dns", StringComparison.OrdinalIgnoreCase))
+                ?["tag"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(dnsTag))
+            {
+                dnsTag = "lroute-dns-out";
+                var suffix = 2;
+                while (fakeOutbounds.OfType<JsonObject>().Any(item =>
+                    string.Equals(item["tag"]?.GetValue<string>(), dnsTag, StringComparison.OrdinalIgnoreCase)))
+                    dnsTag = "lroute-dns-out-" + suffix++;
+                fakeOutbounds.Add(new JsonObject { ["tag"] = dnsTag, ["protocol"] = "dns" });
+            }
+            if (root["routing"] is not JsonObject fakeRouting)
+            {
+                fakeRouting = new JsonObject();
+                root["routing"] = fakeRouting;
+            }
+            if (fakeRouting["rules"] is not JsonArray fakeRules)
+            {
+                fakeRules = new JsonArray();
+                fakeRouting["rules"] = fakeRules;
+            }
+            if (!fakeRules.OfType<JsonObject>().Any(rule =>
+                string.Equals(rule["outboundTag"]?.GetValue<string>(), dnsTag, StringComparison.OrdinalIgnoreCase) &&
+                rule["port"]?.ToString() == "53"))
+            {
+                fakeRules.Insert(0, new JsonObject
+                {
+                    ["type"] = "field",
+                    ["inboundTag"] = new JsonArray("lroute-tun-in"),
+                    ["port"] = "53",
+                    ["network"] = "tcp,udp",
+                    ["outboundTag"] = dnsTag
+                });
+            }
         }
 
         if (sniffingEnabled || fakeDnsEnabled)
