@@ -217,10 +217,12 @@ try
             "Sniffing must be enabled on local inbounds.");
         Assert(root.GetProperty("outbounds")[0].GetProperty("mux").GetProperty("enabled").GetBoolean(),
             "Mux must be enabled on the selected proxy outbound.");
-        var iran = root.GetProperty("routing").GetProperty("rules").EnumerateArray().First();
-        Assert(iran.GetProperty("domain")[0].GetString() == "geosite:ir" &&
-            iran.GetProperty("ip")[0].GetString() == "geoip:ir",
-            "Iran direct split-routing must use the Iran domain and IP geodata.");
+        var iranRules = root.GetProperty("routing").GetProperty("rules").EnumerateArray().ToArray();
+        Assert(iranRules.Any(rule => rule.TryGetProperty("domain", out var domains) &&
+            domains.EnumerateArray().Any(x => x.GetString() == "geosite:ir")) &&
+            iranRules.Any(rule => rule.TryGetProperty("ip", out var ips) &&
+            ips.EnumerateArray().Any(x => x.GetString() == "geoip:ir")),
+            "Iran direct split-routing must add Iran domain and IP geodata rules.");
     }
     var invalidEncryptedDnsRejected = false;
     try { RuntimeConfigOptions.Apply(RuntimeProfileBuilder.Build(unauthenticatedHttp[0]), "1.1.1.1", "", "", encryptedDnsEnabled: true); }
