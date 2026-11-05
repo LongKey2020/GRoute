@@ -522,6 +522,77 @@ public partial class MainWindow : Window
         save.Click+=(_,_)=>{try{var parsed=ProxyLinkParser.ParseManyDetailed(input.Text);if(parsed.Profiles.Count!=1)throw new FormatException("Enter exactly one supported profile or Xray JSON config.");var replacement=parsed.Profiles[0] with{Id=profile.Id,SubscriptionUrl=profile.SubscriptionUrl,AddedAt=profile.AddedAt};var i=_profiles.IndexOf(profile);if(i>=0)_profiles[i]=replacement;Persist();_profilesView?.Refresh();editor.Close();}catch(Exception ex){MessageBox.Show(editor,ex.Message,"Invalid profile",MessageBoxButton.OK,MessageBoxImage.Warning);}};
         editor.ShowDialog();
     }
+
+    private ProxyProfile[] GetGroupMembers(object sender)
+    {
+        if (sender is not Button button || button.Tag is not string groupName) return [];
+        return _profiles.Where(p => p.GroupName == groupName).ToArray();
+    }
+    private void ShareGroup_Click(object sender, RoutedEventArgs e)
+    {
+        var group = GetGroupMembers(sender);
+        if (group.Length == 0 || string.IsNullOrWhiteSpace(group[0].SubscriptionUrl)) return;
+        Clipboard.SetText(group[0].SubscriptionUrl);
+        MessageBox.Show(this, "Subscription URL copied. Keep it private; it may grant access to your server list.", "Share subscription", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+    private async void TestGroup_Click(object sender, RoutedEventArgs e)
+    {
+        var group = GetGroupMembers(sender);
+        if (group.Length == 0) return;
+        using var gate = new SemaphoreSlim(16);
+        var tasks = group.Select(async profile =>
+        {
+            var host = GetProbeHost(profile);
+            if (string.IsNullOrWhiteSpace(host)) return false;
+            await gate.WaitAsync();
+            try { using var ping = new Ping(); return (await ping.SendPingAsync(host, 1200)).Status == IPStatus.Success; }
+            catch { return false; }
+            finally { gate.Release(); }
+        });
+        var results = await Task.WhenAll(tasks);
+        MessageBox.Show(this, "Reachable: " + results.Count(x => x) + " / " + results.Length + "\nICMP does not measure VPN tunnel latency.", "Test server group", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+    private void EditGroup_Click(object sender, RoutedEventArgs e)
+    {
+        var group = GetGroupMembers(sender);
+        if (group.Length == 0 || string.IsNullOrWhiteSpace(group[0].SubscriptionUrl)) return;
+        var oldUrl = group[0].SubscriptionUrl;
+        var newUrl = Microsoft.VisualBasic.Interaction.InputBox("Edit subscription URL:", "Edit subscription", oldUrl);
+        if (string.IsNullOrWhiteSpace(newUrl) || newUrl == oldUrl) return;
+        if (!Uri.TryCreate(newUrl, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
+        {
+            MessageBox.Show(this, "Enter a valid HTTP or HTTPS subscription URL.", "Invalid subscription", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        foreach (var profile in group)
+        {
+            var index = _profiles.IndexOf(profile);
+            if (index >= 0) _profiles[index] = profile with { SubscriptionUrl = newUrl };
+        }
+        Persist(); _profilesView?.Refresh();
+    }
+    private void RefreshGroup_Click(object sender, RoutedEventArgs e)
+    {
+        var group = GetGroupMembers(sender);
+        var profile = group.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p.SubscriptionUrl));
+        if (profile is null) return;
+        ProfilesList.SelectedItem = profile;
+        RefreshSubscription_Click(sender, e);
+    }
+    private void RemoveGroup_Click(object sender, RoutedEventArgs e)
+    {
+        var group = GetGroupMembers(sender);
+        if (group.Length == 0) return;
+        if (MessageBox.Show(this, "Remove all " + group.Length + " servers in '" + group[0].GroupName + "'?", "Remove server group", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (group.Any(p => _active?.Id == p.Id))
+        {
+            MessageBox.Show(this, "Disconnect before removing the active server.", "Remove server group", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        foreach (var profile in group) _profiles.Remove(profile);
+        Persist(); _profilesView?.Refresh(); RefreshUi();
+    }
+
     private void GroupActions_Click(object sender, RoutedEventArgs e)
     {
         if(sender is not Button button||button.Tag is not string groupName)return;
