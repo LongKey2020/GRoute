@@ -184,7 +184,7 @@ try
     // TUN generation must write a private runtime copy and preserve the imported source.
     var tunSourcePath = Path.Combine(temp, "caller-owned-tun-source.json");
     var tunSourceContents = RuntimeConfigOptions.Apply(
-        RuntimeProfileBuilder.Build(unauthenticatedHttp[0]), "9.9.9.9, https://dns.google/dns-query", "");
+        RuntimeProfileBuilder.Build(unauthenticatedHttp[0]), "9.9.9.9, https://dns.google/dns-query", "bypass.example");
     await File.WriteAllTextAsync(tunSourcePath, tunSourceContents);
     var tunRuntimePath = await LRoute.Windows.XrayTunConfigBuilder.CreateAsync(
         tunSourcePath, Path.Combine(temp, "tun-runtime"));
@@ -197,10 +197,17 @@ try
         Assert(tunDocument.RootElement.GetProperty("inbounds").EnumerateArray()
             .Any(item => item.TryGetProperty("protocol", out var protocol) && protocol.GetString() == "tun"),
             "Generated TUN config must contain a TUN inbound.");
-        Assert(tunDocument.RootElement.GetProperty("routing").GetProperty("rules").EnumerateArray()
-            .Any(rule => rule.TryGetProperty("inboundTag", out var tags) &&
-                tags.EnumerateArray().Any(tag => tag.GetString() == "lroute-tun-in")),
-            "Generated TUN config must route the TUN inbound.");
+        var tunRules = tunDocument.RootElement.GetProperty("routing").GetProperty("rules").EnumerateArray().ToArray();
+        var bypassIndex = Array.FindIndex(tunRules, rule =>
+            rule.TryGetProperty("outboundTag", out var target) && target.GetString() == "direct" &&
+            rule.TryGetProperty("domain", out var domains) &&
+            domains.EnumerateArray().Any(domain => domain.GetString() == "domain:bypass.example"));
+        var tunRouteIndex = Array.FindIndex(tunRules, rule =>
+            rule.TryGetProperty("inboundTag", out var tags) &&
+            tags.EnumerateArray().Any(tag => tag.GetString() == "lroute-tun-in"));
+        Assert(tunRouteIndex >= 0, "Generated TUN config must route the TUN inbound.");
+        Assert(bypassIndex >= 0 && bypassIndex < tunRouteIndex,
+            "TUN split-domain bypass must run before the TUN proxy catch-all.");
         var adapterDns = tunDocument.RootElement.GetProperty("inbounds").EnumerateArray()
             .First(item => item.TryGetProperty("protocol", out var protocol) && protocol.GetString() == "tun")
             .GetProperty("settings").GetProperty("dns").EnumerateArray().Select(item => item.GetString()).ToArray();
