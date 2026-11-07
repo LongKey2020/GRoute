@@ -212,8 +212,8 @@ class ConfigStore private constructor(context: Context) {
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
     private fun loadThemeMode(): ThemeMode =
-        runCatching { ThemeMode.valueOf(prefs.getString(KEY_THEME, null) ?: "DARK") }
-            .getOrDefault(ThemeMode.DARK)
+        runCatching { ThemeMode.valueOf(prefs.getString(KEY_THEME, null) ?: "AMOLED") }
+            .getOrDefault(ThemeMode.AMOLED)
 
     fun setThemeMode(mode: ThemeMode) {
         _themeMode.value = mode

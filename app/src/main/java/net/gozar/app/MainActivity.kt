@@ -178,7 +178,6 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingBag
 import android.Manifest
 import android.graphics.Bitmap
 import androidx.core.content.ContextCompat
@@ -343,8 +342,8 @@ import kotlin.math.round
 import kotlin.math.sqrt
 import kotlin.math.roundToInt
 
-private val BrandBlue = Color(0xFF3D6AD6)
-private val SplashBackground = Color(0xFF13234A)
+private val BrandBlue = Color(0xFFFFFFFF)
+private val SplashBackground = Color(0xFF000000)
 
 private val GnetLightColors = lightColorScheme(
     primary = Color(0xFF2557D6),
@@ -425,62 +424,61 @@ private val GnetDarkColors = darkColorScheme(
 )
 
 private val GnetAmoledColors = darkColorScheme(
-    primary = Color(0xFF6CA0FF),
-    onPrimary = Color(0xFF071226),
-    primaryContainer = Color(0xFF1B2944),
-    onPrimaryContainer = Color(0xFFD6E3FF),
-    secondary = Color(0xFF93A7C9),
-    onSecondary = Color(0xFF0E1626),
-    secondaryContainer = Color(0xFF11161F),
-    onSecondaryContainer = Color(0xFFD9E2F2),
+    primary = Color(0xFFFFFFFF),
+    onPrimary = Color(0xFF000000),
+    primaryContainer = Color(0xFF242424),
+    onPrimaryContainer = Color(0xFFFFFFFF),
+    secondary = Color(0xFFBDBDBD),
+    onSecondary = Color(0xFF000000),
+    secondaryContainer = Color(0xFF1A1A1A),
+    onSecondaryContainer = Color(0xFFE5E5E5),
     background = Color(0xFF000000),
-    onBackground = Color(0xFFE6EAF2),
+    onBackground = Color(0xFFFFFFFF),
     surface = Color(0xFF000000),
-    onSurface = Color(0xFFE6EAF2),
-    surfaceVariant = Color(0xFF12161F),
-    onSurfaceVariant = Color(0xFFA2B0C8),
-    surfaceBright = Color(0xFF1A1F2A),
+    onSurface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFF171717),
+    onSurfaceVariant = Color(0xFFBDBDBD),
+    surfaceBright = Color(0xFF242424),
     surfaceDim = Color(0xFF000000),
     surfaceContainerLowest = Color(0xFF000000),
-    surfaceContainerLow = Color(0xFF07090D),
-    surfaceContainer = Color(0xFF0B0E14),
-    surfaceContainerHigh = Color(0xFF0F131B),
-    surfaceContainerHighest = Color(0xFF12161F),
-    tertiary = Color(0xFF35E0FF),
-    onTertiary = Color(0xFF042430),
-    tertiaryContainer = Color(0xFF0A2733),
-    onTertiaryContainer = Color(0xFFC5F1FD),
-    inversePrimary = Color(0xFF2557D6),
-    surfaceTint = Color(0xFF6CA0FF),
+    surfaceContainerLow = Color(0xFF0A0A0A),
+    surfaceContainer = Color(0xFF171717),
+    surfaceContainerHigh = Color(0xFF1D1D1D),
+    surfaceContainerHighest = Color(0xFF242424),
+    tertiary = Color(0xFFE5E5E5),
+    onTertiary = Color(0xFF000000),
+    tertiaryContainer = Color(0xFF242424),
+    onTertiaryContainer = Color(0xFFFFFFFF),
+    inversePrimary = Color(0xFFBDBDBD),
+    surfaceTint = Color(0xFFFFFFFF),
     inverseSurface = Color(0xFFE6EAF2),
     inverseOnSurface = Color(0xFF0B0E14),
     error = Color(0xFFFF7A7A),
     onError = Color(0xFF2A0A0A),
     errorContainer = Color(0xFF3A1010),
     onErrorContainer = Color(0xFFFFDAD6),
-    outline = Color(0xFF2A3344),
-    outlineVariant = Color(0xFF1B2130),
+    outline = Color(0xFF555555),
+    outlineVariant = Color(0xFF292929),
     scrim = Color(0xFF000000)
 )
 
 private val AppCyan: Color
     @Composable get() =
-        if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF35E0FF)
-        else Color(0xFF0A7C99)
+        if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFFFFFFFF)
+        else Color(0xFF333333)
 
 private val AppAqua: Color
     @Composable get() =
-        if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF2AE6FF)
-        else Color(0xFF067E9B)
+        if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFFBDBDBD)
+        else Color(0xFF555555)
 
 internal val LocalLang = compositionLocalOf { Lang.EN }
 
-private const val PAGE_SHOP = 0
-private const val PAGE_SSH = 1
-private const val PAGE_HOME = 2
-private const val PAGE_DEBUG = 3
-private const val PAGE_SETTINGS = 4
-private const val PAGE_COUNT = 5
+private const val PAGE_SSH = 0
+private const val PAGE_HOME = 1
+private const val PAGE_DEBUG = 2
+private const val PAGE_SETTINGS = 3
+private const val PAGE_COUNT = 4
 
 @Composable
 private fun stringsFn(): (String) -> String {
@@ -789,12 +787,8 @@ class MainActivity : ComponentActivity() {
                     LocalLang provides lang,
                     LocalLayoutDirection provides direction
                 ) {
-                    var showWelcome by remember { mutableStateOf(true) }
-                    var startMain by remember { mutableStateOf(false) }
-                    LaunchedEffect(Unit) {
-                        delay(1100)
-                        startMain = true
-                    }
+                    var showWelcome by remember { mutableStateOf(false) }
+                    var startMain by remember { mutableStateOf(true) }
                     Box {
                         if (startMain) {
                             GozarApp(store = store, onConnect = ::connectTo, onDisconnect = ::disconnect, onSwitch = ::switchTo, onCancelPick = ::cancelPick)
@@ -1263,7 +1257,6 @@ private fun GozarApp(
     val subScreenOpen = (page == PAGE_SSH && sshSubScreen) || (page == PAGE_HOME && (showPicker || showManual || showProjects || showTorNodes || showWindscribe || showScanner || exportConfigs != null)) || (onSettingsTab && (usageDetail || perAppDetail || logsDetail || stabilityDetail || aboutDetail || cleanIpDetail || themeDetail || toolsDetail || connDetail || prefsDetail || netMonDetail || netCatDetail || netCatIndex >= 0 || checkHostDetail))
 
     val screenKey = when {
-        page == PAGE_SHOP -> "shop"
         page == PAGE_SSH -> "ssh"
         page == PAGE_HOME && exportConfigs != null -> "export"
         page == PAGE_HOME && showManual -> "manual"
@@ -1339,8 +1332,8 @@ private fun GozarApp(
     val gradDark = gradBg.luminance() < 0.5f
     val gradient = remember(gradBg, gradDark) {
         if (gradDark) Brush.verticalGradient(
-            0f to lerp(gradBg, Color(0xFF6D9BEE), 0.12f),
-            0.45f to lerp(gradBg, Color(0xFF6D9BEE), 0.05f),
+            0f to lerp(gradBg, Color(0xFF242424), 0.08f),
+            0.45f to lerp(gradBg, Color(0xFF242424), 0.03f),
             1f to gradBg
         ) else SolidColor(gradBg)
     }
@@ -1353,17 +1346,13 @@ private fun GozarApp(
             CenterAlignedTopAppBar(
                 title = {
                     if (screenKey == "connection") {
-                        val logoRes = if (effectiveDark) R.drawable.logo else R.drawable.logo_black
-                        Box {
-                            Image(
-                                painter = painterResource(logoRes),
-                                contentDescription = null,
-                                modifier = Modifier.height(34.dp)
-                            )
-                            Image(
-                                painter = painterResource(logoRes),
-                                contentDescription = t("app_title"),
-                                modifier = Modifier.height(34.dp)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "LROUTE",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Light,
+                                letterSpacing = 2.sp,
+                                color = MaterialTheme.colorScheme.onBackground
                             )
                         }
                     } else {
@@ -1449,12 +1438,6 @@ private fun GozarApp(
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    selected = page == PAGE_SHOP,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(PAGE_SHOP) } },
-                    icon = { Icon(Icons.Filled.ShoppingBag, contentDescription = null) },
-                    label = { Text(t("shop")) }
-                )
-                NavigationBarItem(
                     selected = page == PAGE_SSH,
                     onClick = { scope.launch { pagerState.animateScrollToPage(PAGE_SSH) } },
                     icon = { Icon(Icons.Filled.Terminal, contentDescription = null) },
@@ -1518,9 +1501,7 @@ private fun GozarApp(
                     alpha = contentAlpha
                 }
         ) { p ->
-            if (p == PAGE_SHOP) {
-                ShopScreen()
-            } else if (p == PAGE_SSH) {
+            if (p == PAGE_SSH) {
                 SshScreen(
                     store = SshStore.get(LocalContext.current),
                     onSubScreenChange = { sshSubScreen = it }
@@ -1593,6 +1574,13 @@ private fun GozarApp(
                             store = store,
                             selectedId = selectedId,
                             onOpenPicker = { showPicker = true },
+                            onManualConfig = { showManual = true },
+                            onScanQr = { showScanner = true },
+                            onImportConfig = { showPicker = true },
+                            onOpenConnectionSettings = {
+                                connDetail = true
+                                scope.launch { pagerState.animateScrollToPage(PAGE_SETTINGS) }
+                            },
                             onConnect = onConnect,
                             onDisconnect = onDisconnect,
                             onCancelPick = onCancelPick
@@ -1695,6 +1683,10 @@ private fun ConnectionScreen(
     store: ConfigStore,
     selectedId: String?,
     onOpenPicker: () -> Unit,
+    onManualConfig: () -> Unit,
+    onScanQr: () -> Unit,
+    onImportConfig: () -> Unit,
+    onOpenConnectionSettings: () -> Unit,
     onConnect: (ProxyConfig) -> Unit,
     onDisconnect: () -> Unit,
     onCancelPick: () -> Unit = {},
@@ -1761,7 +1753,7 @@ private fun ConnectionScreen(
     Box(modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalHazeState provides hazeState) {
             Column(
-                Modifier.fillMaxSize().padding(16.dp),
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Card(
@@ -1910,6 +1902,46 @@ private fun ConnectionScreen(
                     }
                 }
 
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    BounceOutlinedButton(
+                        onClick = onOpenConnectionSettings,
+                        minHeight = 46.dp,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("VPN SETTINGS  ·  DNS / SPLIT TUNNEL", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    BounceOutlinedButton(
+                        onClick = onManualConfig,
+                        minHeight = 46.dp,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) { Text("MANUAL CONFIG", maxLines = 1) }
+                    BounceOutlinedButton(
+                        onClick = onScanQr,
+                        minHeight = 46.dp,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) { Text("SCAN QR", maxLines = 1) }
+                }
+
+                BounceOutlinedButton(
+                    onClick = onImportConfig,
+                    minHeight = 48.dp,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("IMPORT CONFIG FILE", maxLines = 1)
+                }
+
                 var btnPressed by remember { mutableStateOf(false) }
                 val glowActive = !connected && selectedConfig != null && !btnPressed
                 val glowAlpha by animateFloatAsState(
@@ -1936,8 +1968,8 @@ private fun ConnectionScreen(
                     val stateTint by animateColorAsState(
                         when {
                             netOffline || deadTunnel -> Color(0xFFE0413C)
-                            conn == Connection.CONNECTING -> Color(0xFFFFA94D)
-                            connected -> AppGreen
+                            conn == Connection.CONNECTING -> Color(0xFFBDBDBD)
+                            connected -> Color(0xFFFFFFFF)
                             else -> MaterialTheme.colorScheme.primary
                         },
                         tween(450),
@@ -2051,14 +2083,14 @@ private fun ConnectionScreen(
                             speed = downSpeed,
                             total = totalDown,
                             icon = Icons.Filled.ArrowDownward,
-                            color = Color(0xFF35E0FF),
+                            color = Color(0xFFBDBDBD),
                             modifier = Modifier.weight(1f)
                         )
                         StatBox(
                             speed = upSpeed,
                             total = totalUp,
                             icon = Icons.Filled.ArrowUpward,
-                            color = Color(0xFFFF4DD8),
+                            color = Color(0xFFFFFFFF),
                             modifier = Modifier.weight(1f)
                         )
                         BounceOutlinedButton(
@@ -2085,9 +2117,9 @@ private fun ConnectionScreen(
 
                 val globeStyle by store.globeStyle.collectAsState()
                 if (globeStyle == "dots") {
-                    DotGlobeSection(Modifier.weight(1f).fillMaxWidth())
+                    DotGlobeSection(Modifier.fillMaxWidth().height(190.dp))
                 } else {
-                    EarthSection(Modifier.weight(1f).fillMaxWidth())
+                    EarthSection(Modifier.fillMaxWidth().height(190.dp))
                 }
             }
         }
@@ -3941,103 +3973,6 @@ private fun GlassDialog(
                         Text(confirmLabel, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ShopScreen(modifier: Modifier = Modifier) {
-    val t = stringsFn()
-    val lang = LocalLang.current
-    val plans = listOf(
-        Triple("۱ ماهه · 30 GB", "۱۲۰,۰۰۰", "1 month · 30 GB"),
-        Triple("۲ ماهه · 80 GB", "۲۲۰,۰۰۰", "2 months · 80 GB"),
-        Triple("۳ ماهه · 150 GB", "۳۲۰,۰۰۰", "3 months · 150 GB"),
-        Triple("۶ ماهه · 400 GB", "۵۹۰,۰۰۰", "6 months · 400 GB"),
-        Triple("۱ ساله · نامحدود", "۹۹۰,۰۰۰", "1 year · Unlimited"),
-        Triple("۲ ساله · نامحدود", "۱,۷۹۰,۰۰۰", "2 years · Unlimited"),
-        Triple("اشتراک خانواده", "۱,۲۹۰,۰۰۰", "Family plan"),
-        Triple("اشتراک نمایندگی", "۲,۹۹۰,۰۰۰", "Reseller plan")
-    )
-
-    Box(modifier.fillMaxSize()) {
-        Column(
-            Modifier.fillMaxSize().blur(14.dp).padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            plans.forEach { (fa, price, en) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.30f))
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                if (lang == Lang.FA) fa else en,
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                if (lang == Lang.FA) "تحویل آنی" else "Instant delivery",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Text(
-                            price + if (lang == Lang.FA) " تومان" else " T",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-        }
-
-        Box(
-            Modifier.fillMaxSize().background(
-                MaterialTheme.colorScheme.background.copy(alpha = 0.35f)
-            )
-        )
-
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            ),
-            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
-            modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp)
-        ) {
-            Column(
-                Modifier.padding(horizontal = 28.dp, vertical = 22.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.Filled.ShoppingBag,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(30.dp)
-                )
-                Text(
-                    t("shop_soon"),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    t("shop_soon_sub"),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
             }
         }
     }

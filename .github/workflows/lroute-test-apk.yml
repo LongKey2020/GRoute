@@ -1,0 +1,66 @@
+name: LRoute Test APK
+
+on:
+  push:
+    branches:
+      - lroute-black-white-ui
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lroute-test-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NDK_VERSION: 27.3.13750724
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
+jobs:
+  build-debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Accept Android SDK licenses and install build packages
+        run: |
+          SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;${NDK_VERSION}" "cmake;3.22.1"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+
+      - name: Verify native build inputs
+        run: |
+          test -f app/libs/gozarcore.aar
+          test -f strongswan/src/libstrongswan/asn1/oid.c
+          test -f strongswan/src/libstrongswan/crypto/proposal/proposal_keywords_static.c
+          test -f strongswan/src/libstrongswan/settings/settings_parser.c
+          test -f strongswan/src/libstrongswan/settings/settings_lexer.c
+          test -f strongswan/Android.common.mk
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LRoute-debug-${{ github.sha }}
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
